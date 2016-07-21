@@ -49,6 +49,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.TimerTask;
+import java.util.Timer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,10 +65,13 @@ public class DeviceListActivity extends Activity {
     List<BluetoothDevice> deviceList;
     private DeviceAdapter deviceAdapter;
     private ServiceConnection onService = null;
+    private SimpleDataStore sDataStore;
+    private Timer timer;
     Map<String, Integer> devRssiValues;
     private static final long SCAN_PERIOD = 10000; //scanning for 10 seconds
     private Handler mHandler;
     private boolean mScanning;
+    private boolean autoPair;
 
 
 
@@ -79,6 +84,17 @@ public class DeviceListActivity extends Activity {
         android.view.WindowManager.LayoutParams layoutParams = this.getWindow().getAttributes();
         layoutParams.gravity= Gravity.TOP;
         layoutParams.y = 200;
+
+        Bundle extras = getIntent().getExtras();
+        if(extras != null) {
+            autoPair = new Boolean(extras.getString("AutoPair"));
+        }
+
+        sDataStore = new SimpleDataStore("Graphhopper",this);
+
+        timer = new Timer();
+        timer.schedule(new finishTask(), 1000);
+
         mHandler = new Handler();
         // Use this check to determine whether BLE is supported on the device.  Then you can
         // selectively disable BLE-related features.
@@ -172,13 +188,30 @@ public class DeviceListActivity extends Activity {
     private void addDevice(BluetoothDevice device, int rssi) {
         boolean deviceFound = false;
 
+        // Already connected before
+        if (autoPair) {
+            if (device.getAddress().equals(sDataStore.retrieve_string_value("GH-" + device.getAddress()))) {
+//            BluetoothDevice device = deviceList.get(position);
+                mBluetoothAdapter.stopLeScan(mLeScanCallback);
+
+                Bundle b = new Bundle();
+                b.putString(BluetoothDevice.EXTRA_DEVICE, device.getAddress());
+
+                Intent result = new Intent();
+                result.putExtras(b);
+                setResult(Activity.RESULT_OK, result);
+//                finish();
+            }
+            finish();
+        }
+
+
         for (BluetoothDevice listDev : deviceList) {
             if (listDev.getAddress().equals(device.getAddress())) {
                 deviceFound = true;
                 break;
             }
         }
-        
         
         devRssiValues.put(device.getAddress(), rssi);
         if (!deviceFound) {
@@ -228,7 +261,7 @@ public class DeviceListActivity extends Activity {
             Intent result = new Intent();
             result.putExtras(b);
             setResult(Activity.RESULT_OK, result);
-            finish();
+//            finish();
         	
         }
     };
@@ -313,4 +346,13 @@ public class DeviceListActivity extends Activity {
     private void showMessage(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
+
+    //tells handler to send a message
+    class finishTask extends TimerTask {
+
+        @Override
+        public void run() {
+            finish();
+        }
+    };
 }

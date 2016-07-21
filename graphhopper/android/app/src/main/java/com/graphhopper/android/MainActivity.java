@@ -132,6 +132,8 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
     private enum bearings {NE,NW,SE,SW};
 
+    private SimpleDataStore sDataStore;
+
     private TextView debugView;
 
     private LineChart mChart;
@@ -363,6 +365,9 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
         setContentView(R.layout.main);
         AndroidGraphicFactory.createInstance(getApplication());
 
+        sDataStore = new SimpleDataStore("Graphhopper",this);
+//        Log.d("dsadas", "SDataStore Value: " + sDataStore.retrieve_string_value("Test"));
+
         // ===================================
         mBtAdapter = BluetoothAdapter.getDefaultAdapter();
         if (mBtAdapter == null) {
@@ -463,6 +468,7 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
         // if (AndroidHelper.isFastDownload(this))
         chooseAreaFromRemote();
         chooseAreaFromLocal();
+        autoConnectBluetooth();
     }
 
     @Override
@@ -1137,6 +1143,12 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
         }
     }
 
+    public void autoConnectBluetooth() {
+        Intent newIntent = new Intent(MainActivity.this, DeviceListActivity.class);
+        newIntent.putExtra("AutoPair", "true");
+        startActivityForResult(newIntent, REQUEST_SELECT_DEVICE);
+    }
+
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         switch (requestCode) {
@@ -1149,6 +1161,8 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
                     Log.d(TAG, "... onActivityResultdevice.address==" + mDevice + "mserviceValue" + mService);
                     ((TextView) findViewById(R.id.deviceName)).setText(mDevice.getName()+ " - connecting");
+                    // Store in shared preferences
+                    sDataStore.store_string_value("GH-" + deviceAddress,deviceAddress);
                     mService.connect(deviceAddress);
                 }
                 break;
