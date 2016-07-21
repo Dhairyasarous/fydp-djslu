@@ -116,19 +116,23 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
     private Location mLastLocation;
     private LocationRequest mLocationRequest;
     private Marker currentLocationMarker;
-//    private Marker greenFlag;
+    //    private Marker greenFlag;
     private Marker redFlag;
     private Polyline polyline;
     private ArrayList<NavPoint> route;
     private ArrayList<Location> spoofLocations;
     private NavPoint nextPoint;
-    private NavPoint prevPoint;
+    private int nextTurnIndex;
     private double oldNextDistance;
     private int pointIndex;
 
     private final double TURN_ON_DISTANCE_THRESHOLD = 100;
     private final double TURN_OFF_DISTANCE_THRESHOLD = 10;
     private final double NEXT_POINT_THRESHOLD = 10;
+
+    private enum bearings {NE,NW,SE,SW};
+
+    private SimpleDataStore sDataStore;
 
     private TextView debugView;
 
@@ -325,10 +329,14 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
             calcPath(start.latitude, start.longitude, end.latitude,
                     end.longitude);
-        } else
+        }
+        else
         {
 //            start = tapLatLong;
             start = new LatLong(mLastLocation.getLatitude(),mLastLocation.getLongitude());
+//            start = new LatLong(43.472356, -80.540956);
+//            start = new LatLong(43.471787, -80.542484);
+//            start = new LatLong(43.471209, -80.541407);
             end = null;
             // remove all layers but the first one, which is the map
 
@@ -356,6 +364,9 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         AndroidGraphicFactory.createInstance(getApplication());
+
+        sDataStore = new SimpleDataStore("Graphhopper",this);
+//        Log.d("dsadas", "SDataStore Value: " + sDataStore.retrieve_string_value("Test"));
 
         // ===================================
         mBtAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -457,6 +468,7 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
         // if (AndroidHelper.isFastDownload(this))
         chooseAreaFromRemote();
         chooseAreaFromLocal();
+        autoConnectBluetooth();
     }
 
     @Override
@@ -543,13 +555,13 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
         chooseArea(localButton, localSpinner, nameList,
                 new MySpinnerListener()
-        {
-            @Override
-            public void onSelect( String selectedArea, String selectedFile )
-            {
-                initFiles(selectedArea);
-            }
-        });
+                {
+                    @Override
+                    public void onSelect( String selectedArea, String selectedFile )
+                    {
+                        initFiles(selectedArea);
+                    }
+                });
     }
 
     private void chooseAreaFromRemote()
@@ -684,13 +696,13 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
                 downloader.setTimeout(30000);
                 downloader.downloadAndUnzip(downloadURL, localFolder,
                         new ProgressListener()
-                {
-                    @Override
-                    public void update( long val )
-                    {
-                        publishProgress((int) val);
-                    }
-                });
+                        {
+                            @Override
+                            public void update( long val )
+                            {
+                                publishProgress((int) val);
+                            }
+                        });
                 return null;
             }
 
@@ -745,12 +757,12 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
 
 
-        setContentView(mapView);
-//        setContentView(R.layout.debug_map);
-//        RelativeLayout rel = (RelativeLayout) findViewById(R.id.debugLayout);
-//        rel.addView(mapView);
-//        debugView = (TextView) findViewById(R.id.tView);
-//        debugView.bringToFront();
+//        setContentView(mapView);
+        setContentView(R.layout.debug_map);
+        RelativeLayout rel = (RelativeLayout) findViewById(R.id.debugLayout);
+        rel.addView(mapView);
+        debugView = (TextView) findViewById(R.id.tView);
+        debugView.bringToFront();
 
         loadGraphStorage();
     }
@@ -796,9 +808,9 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
         paintStroke.setStyle(Style.STROKE);
         paintStroke.setColor(Color.argb(128, 0, 0xCC, 0x33));
         paintStroke.setDashPathEffect(new float[]
-        {
-            25, 15
-        });
+                {
+                        25, 15
+                });
         paintStroke.setStrokeWidth(8);
 
         Polyline line = new Polyline(paintStroke, AndroidGraphicFactory.INSTANCE);
@@ -855,6 +867,8 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
                     Location loc1 = new Location("");
                     Location loc2 = new Location("");
 
+                    //Clear old route
+                    route.clear();
                     Iterator<GHPoint3D> test = resp.getPoints().iterator();
 
                     GHPoint3D p1;
@@ -882,6 +896,8 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
                         double curAngle = loc1.bearingTo(loc2);
                         double difference = prevAngle - curAngle;
+                        bearings prevBearing = getBearing(prevAngle);
+                        bearings curBearing = getBearing(curAngle);
 
                         NavPoint curPoint = new NavPoint(loc2);
 
@@ -892,25 +908,19 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
                         mapView.getLayerManager().getLayers().add(marker);
 
                         if (prevAngle != 0) {
-                            if ((prevAngle < 0 && curAngle < 0) || (prevAngle > 0 && curAngle > 0)) {
-                                if (difference < -40) {
-                                    Log.d("m", "Turn right.");
-                                    curPoint.turnRight = true;
-                                } else if (difference > 40) {
+                            if (Math.abs(difference) > 40) {
+                                if (prevBearing == bearings.NE && curBearing == bearings.SE
+                                        || (prevBearing == bearings.SW && curBearing == bearings.NW)
+                                        || (prevBearing == bearings.NW && curBearing == bearings.NE)
+                                        || (prevBearing == bearings.SE && curBearing == bearings.SW)
+                                        || (prevBearing == bearings.NE && curBearing == bearings.SE)) {
+                                    Log.d("m", "Turn right.");curPoint.turnRight = true;
+                                } else if ((prevBearing == bearings.NW && curBearing == bearings.SW)
+                                        || (prevBearing == bearings.SE && curBearing == bearings.NE)
+                                        || (prevBearing == bearings.NE && curBearing == bearings.NW)
+                                        || (prevBearing == bearings.SW && curBearing == bearings.SE)) {
                                     Log.d("m", "Turn left.");
                                     curPoint.turnLeft = true;
-                                }
-                            }
-                            else if (prevAngle > 0 && curAngle < 0) {
-                                if (difference > 40) {
-                                    Log.d("m", "Turn left.");
-                                    curPoint.turnLeft = true;
-                                }
-                            }
-                            else {
-                                if (difference < -40) {
-                                    Log.d("m", "Turn right.");
-                                    curPoint.turnRight = true;
                                 }
                             }
                         }
@@ -1060,29 +1070,54 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 //            }
 //            return;
 
+            boolean turnIn3PointsRight = false;
+            boolean turnIn3PointsLeft = false;
+
             NavPoint nextNextPoint = cloneNavPoint(route.get(0));
             double distance1 = mLastLocation.distanceTo(nextPoint.location);
             double distance2 = mLastLocation.distanceTo(nextNextPoint.location);
-
             double combDistance = distance1 + nextPoint.location.distanceTo(nextNextPoint.location);
+            double newDistance = 0;
+
+            if (nextTurnIndex < 1) {
+                nextTurnIndex = getNextTurn();
+            }
+            else if (nextTurnIndex == 1) {
+                NavPoint nextNextNextPoint = route.get(nextTurnIndex);
+                newDistance = combDistance + nextNextPoint.location.distanceTo(nextNextNextPoint.location);
+                turnIn3PointsRight = (newDistance <= TURN_ON_DISTANCE_THRESHOLD) && nextNextNextPoint.turnRight;
+                turnIn3PointsLeft = (newDistance <= TURN_ON_DISTANCE_THRESHOLD) && nextNextNextPoint.turnLeft;
+//                nextTurnIndex = 0;
+            }
+
 //            Log.d("Test", "Test");
 //            Toast.makeText(this, "Distance to next: " + distance1 + ", Distance of old: " + oldNextDistance, Toast.LENGTH_SHORT).show();
 //            debugView.setText("Distance to next: " + distance1 + ", Distance of old: " + oldNextDistance);
+            debugView.setText("Next Turn Index: " + nextTurnIndex + ", Turn distance: " + newDistance);
             Log.d("dd","Distance to next: " + distance1 + ", Distance of old: " + oldNextDistance);
-            sendMessageToBluetooth();
-
 
             if (/*(nextPoint.turnRight && distance1 <= TURN_ON_DISTANCE_THRESHOLD)
-                    ||*/ (nextNextPoint.turnRight && combDistance <= TURN_ON_DISTANCE_THRESHOLD)
-                    && (!nextPoint.turnRight || distance1 > TURN_OFF_DISTANCE_THRESHOLD )) {
+                    ||*/ ((nextNextPoint.turnRight && combDistance <= TURN_ON_DISTANCE_THRESHOLD)
+                    && (!nextPoint.turnRight || distance1 > TURN_OFF_DISTANCE_THRESHOLD ))
+                    || turnIn3PointsRight) {
+
+                if (mState == UART_PROFILE_CONNECTED) {
+                    sendMessageToBluetooth();
+                }
+
 //                Toast.makeText(this, "Turn Right", Toast.LENGTH_SHORT).show();
-//                debugView.setText("Turn right");
+                debugView.setText("Turn right");
             }
             else if (/*(nextPoint.turnLeft && distance2 <= TURN_ON_DISTANCE_THRESHOLD)
-                    ||*/ (nextNextPoint.turnLeft && combDistance <= TURN_ON_DISTANCE_THRESHOLD)
-                    && (!nextPoint.turnLeft || distance1 > TURN_OFF_DISTANCE_THRESHOLD )){
+                    ||*/ ((nextNextPoint.turnLeft && combDistance <= TURN_ON_DISTANCE_THRESHOLD)
+                    && (!nextPoint.turnLeft || distance1 > TURN_OFF_DISTANCE_THRESHOLD ))
+                    || turnIn3PointsLeft){
+
+                if (mState == UART_PROFILE_CONNECTED) {
+                    sendMessageToBluetooth();
+                }
 //                Toast.makeText(this, "Turn Left", Toast.LENGTH_SHORT).show();
-//                debugView.setText("Turn left");
+                debugView.setText("Turn left");
             }
 
             if (oldNextDistance < distance1 && (distance1 - oldNextDistance) > 2) {
@@ -1090,11 +1125,28 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
                 nextPoint = cloneNavPoint(route.get(0));
                 oldNextDistance = distance2;
                 route.remove(0);
+                nextTurnIndex--;
             }
             else {
                 oldNextDistance = distance1;
             }
         }
+        else if (route.size() == 1) {
+            double distance1 = mLastLocation.distanceTo(nextPoint.location);
+
+            if (oldNextDistance < distance1 && (distance1 - oldNextDistance) > 2) {
+                Toast.makeText(this, "Passed point", Toast.LENGTH_SHORT).show();
+                nextPoint = cloneNavPoint(route.get(0));
+                route.remove(0);
+                nextTurnIndex--;
+            }
+        }
+    }
+
+    public void autoConnectBluetooth() {
+        Intent newIntent = new Intent(MainActivity.this, DeviceListActivity.class);
+        newIntent.putExtra("AutoPair", "true");
+        startActivityForResult(newIntent, REQUEST_SELECT_DEVICE);
     }
 
     @Override
@@ -1109,6 +1161,8 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
                     Log.d(TAG, "... onActivityResultdevice.address==" + mDevice + "mserviceValue" + mService);
                     ((TextView) findViewById(R.id.deviceName)).setText(mDevice.getName()+ " - connecting");
+                    // Store in shared preferences
+                    sDataStore.store_string_value("GH-" + deviceAddress,deviceAddress);
                     mService.connect(deviceAddress);
                 }
                 break;
@@ -1168,6 +1222,37 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
+    }
+
+    public int getNextTurn() {
+        for (int i = 0; i < route.size(); i++) {
+            NavPoint point = route.get(i);
+            if (point.turnLeft || point.turnRight) {
+                // Add 1 because one point is initially not in the
+                // route because it is stored in a variable
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    public bearings getBearing(double degrees) {
+
+        if (degrees >= 0 && degrees <= 90) {
+            return bearings.NE;
+        }
+        else if (degrees > 90 && degrees <= 180) {
+            return bearings.SE;
+        }
+        else if (degrees < 0 && degrees >= -90) {
+            return bearings.NW;
+        }
+        else if (degrees < -90 && degrees >= -180) {
+            return bearings.SW;
+        }
+
+        return null;
+//        throw new Exception("Bearing not found.");
     }
 
     public NavPoint cloneNavPoint(NavPoint original) {
