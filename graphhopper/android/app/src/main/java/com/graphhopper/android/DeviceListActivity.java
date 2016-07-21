@@ -74,6 +74,9 @@ public class DeviceListActivity extends Activity {
     private boolean autoPair;
 
 
+    //____________
+    private String fydpDevice = "";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,15 +88,21 @@ public class DeviceListActivity extends Activity {
         layoutParams.gravity= Gravity.TOP;
         layoutParams.y = 200;
 
-        Bundle extras = getIntent().getExtras();
+        Intent intent = getIntent();
+        Bundle extras = intent.getExtras();
+        fydpDevice = intent.getStringExtra(MainActivity.FYDP_DEVICE_TAG);
+
         if(extras != null) {
             autoPair = new Boolean(extras.getString("AutoPair"));
+            if (autoPair) {
+                timer = new Timer();
+                timer.schedule(new finishTask(), 1000);
+            }
         }
 
         sDataStore = new SimpleDataStore("Graphhopper",this);
 
-        timer = new Timer();
-        timer.schedule(new finishTask(), 1000);
+
 
         mHandler = new Handler();
         // Use this check to determine whether BLE is supported on the device.  Then you can
@@ -257,11 +266,12 @@ public class DeviceListActivity extends Activity {
   
             Bundle b = new Bundle();
             b.putString(BluetoothDevice.EXTRA_DEVICE, deviceList.get(position).getAddress());
+            b.putString(MainActivity.FYDP_DEVICE_TAG, fydpDevice);
 
             Intent result = new Intent();
             result.putExtras(b);
             setResult(Activity.RESULT_OK, result);
-//            finish();
+            finish();
         	
         }
     };
