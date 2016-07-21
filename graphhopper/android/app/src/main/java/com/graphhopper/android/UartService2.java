@@ -145,6 +145,7 @@ public class UartService2 extends Service {
     private void broadcastUpdate(final String action,
                                  final BluetoothGattCharacteristic characteristic) {
         final Intent intent = new Intent(action);
+        intent.putExtra("className", TAG);
 
         // This is handling for the notification on TX Character of NUS service
         if (TX_CHAR_UUID.equals(characteristic.getUuid())) {
