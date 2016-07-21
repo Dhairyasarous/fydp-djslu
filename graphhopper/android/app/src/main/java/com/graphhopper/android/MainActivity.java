@@ -39,6 +39,12 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.location.Location;
+
+import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.data.LineData;
+import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 import com.graphhopper.PathWrapper;
 
 import com.graphhopper.GHRequest;
@@ -126,6 +132,9 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
     private TextView debugView;
 
+    private LineChart mChart;
+    private float usDistance = 0;
+
     // --------------------------------------
     public static final String TAG = "BasicBluetooth";
     private static final int PERMISSION_REQUEST_COARSE_LOCATION = 1;
@@ -143,6 +152,7 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
     private BluetoothDevice mDevice = null;
     private BluetoothAdapter mBtAdapter = null;
     private Button btnConnectDisconnect,btnVibrate;
+    private TextView textViewDistance;
 
     private final BroadcastReceiver UARTStatusChangeReceiver = new BroadcastReceiver() {
 
@@ -194,7 +204,9 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
                     public void run() {
                         try {
                             String text = new String(txValue, "UTF-8");
-
+                            usDistance = Float.parseFloat(text);
+                            textViewDistance.setText(text);
+                            addEntry(usDistance);
                         } catch (Exception e) {
                             Log.e(TAG, e.toString());
                         }
@@ -210,6 +222,39 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
         }
     };
+
+    private float filter(float unfilteredDistance, float alpha) {
+        float filteredDistance = 0;
+        filteredDistance = usDistance + alpha * (unfilteredDistance - usDistance);
+        return filteredDistance;
+    }
+
+    private LineDataSet createSet() {
+        LineDataSet set = new LineDataSet(null, "Random Data");
+        set.setColor(Color.BLACK);
+        set.setLineWidth(0.5f);
+        set.setDrawValues(false);
+        set.setDrawCircles(false);
+        set.setDrawFilled(false);
+        return set;
+    }
+
+    private void addEntry(float value) {
+        LineData data = mChart.getData();
+        if (data != null) {
+            ILineDataSet set = data.getDataSetByIndex(0);
+            if (set == null) {
+                set = createSet();
+                data.addDataSet(set);
+            }
+            data.addEntry(new Entry(set.getEntryCount(), value), 0);
+            data.notifyDataChanged();
+            mChart.notifyDataSetChanged();
+            mChart.setVisibleXRangeMaximum(100);
+            mChart.moveViewToX(data.getEntryCount());
+        }
+    }
+
     //UART service connected/disconnected
     private ServiceConnection mServiceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder rawBinder) {
@@ -322,6 +367,18 @@ public class MainActivity extends Activity implements ConnectionCallbacks,OnConn
 
         btnVibrate = (Button) findViewById(R.id.buttonVibrate);
         btnConnectDisconnect=(Button) findViewById(R.id.buttonSelect);
+        textViewDistance = (TextView) findViewById(R.id.textViewDistance);
+        mChart = (LineChart) findViewById(R.id.chart1);
+        mChart.setData(new LineData());
+        mChart.setDescription("");
+        mChart.getAxisLeft().setDrawGridLines(true);
+        mChart.getAxisRight().setEnabled(false);
+        mChart.getXAxis().setDrawAxisLine(false);
+        mChart.getXAxis().setEnabled(true);
+        mChart.getXAxis().setDrawGridLines(true);
+        mChart.getLegend().setEnabled(false);
+        for (int i = 0; i < 100; i++) addEntry(0);
+
         service_init();
 
         // Handle Disconnect & Connect button

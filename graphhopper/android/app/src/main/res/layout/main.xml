@@ -82,6 +82,12 @@
             android:layout_height="wrap_content"
             android:text="Vibrate"
             android:id="@+id/buttonVibrate" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Distance:"
+            android:id="@+id/textViewDistance" />
     </LinearLayout>
 
     <RelativeLayout
@@ -118,6 +124,16 @@
             android:layout_alignParentTop="true"
             android:text="_"
             android:textAppearance="?android:attr/textAppearanceMedium" />
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/chart1"
+            android:layout_width="match_parent"
+            android:layout_height="178dp"/>
     </RelativeLayout>
 
 </LinearLayout>

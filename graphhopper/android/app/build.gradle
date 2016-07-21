@@ -50,4 +50,5 @@ dependencies {
 
     compile group: 'org.slf4j', name: 'slf4j-android', version: '1.7.12'
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.12'
+    compile 'com.github.PhilJay:MPAndroidChart:v3.0.0-beta1'
 }
