@@ -49,8 +49,8 @@ import java.util.UUID;
  * given Bluetooth LE device.
  */
 @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
-public class UartService extends Service {
-    public final static String TAG = UartService.class.getSimpleName();
+public class UartService2 extends Service {
+    public final static String TAG = UartService2.class.getSimpleName();
 
     private BluetoothManager mBluetoothManager;
     private BluetoothAdapter mBluetoothAdapter;
@@ -158,8 +158,8 @@ public class UartService extends Service {
     }
 
     public class LocalBinder extends Binder {
-        UartService getService() {
-            return UartService.this;
+        UartService2 getService() {
+            return UartService2.this;
         }
     }
 

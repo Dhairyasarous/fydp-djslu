@@ -68,6 +68,7 @@ public class DeviceListActivity extends Activity {
     private Handler mHandler;
     private boolean mScanning;
 
+    private String fydpDevice = "";
 
 
     @Override
@@ -75,6 +76,8 @@ public class DeviceListActivity extends Activity {
     	
         super.onCreate(savedInstanceState);
         Log.d(TAG, "onCreate");
+        Intent intent = getIntent();
+        fydpDevice = intent.getStringExtra(MainActivity.FYDP_DEVICE_TAG);
         setContentView(R.layout.device_list);
         android.view.WindowManager.LayoutParams layoutParams = this.getWindow().getAttributes();
         layoutParams.gravity= Gravity.TOP;
@@ -124,7 +127,7 @@ public class DeviceListActivity extends Activity {
         newDevicesListView.setAdapter(deviceAdapter);
         newDevicesListView.setOnItemClickListener(mDeviceClickListener);
 
-           scanLeDevice(true);
+        scanLeDevice(true);
 
     }
     
@@ -224,12 +227,11 @@ public class DeviceListActivity extends Activity {
   
             Bundle b = new Bundle();
             b.putString(BluetoothDevice.EXTRA_DEVICE, deviceList.get(position).getAddress());
-
+            b.putString(MainActivity.FYDP_DEVICE_TAG, fydpDevice);
             Intent result = new Intent();
             result.putExtras(b);
             setResult(Activity.RESULT_OK, result);
             finish();
-        	
         }
     };
 
