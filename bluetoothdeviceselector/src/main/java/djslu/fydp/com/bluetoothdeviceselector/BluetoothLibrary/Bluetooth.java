@@ -150,6 +150,10 @@ public class Bluetooth {
         return mBluetoothClassic.getPairedDevices();
     }
 
+    public int getmId() {
+        return mId;
+    }
+
     public void scanDevices() {
         switch (mBluetoothType) {
             case CLASSIC:
