@@ -1,9 +1,9 @@
 package djslu.fydp.com.bluetoothdeviceselector;
 
 import android.Manifest;
-import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
@@ -20,6 +20,13 @@ import static djslu.fydp.com.bluetoothdeviceselector.BluetoothLibrary.Bluetooth.
 import static djslu.fydp.com.bluetoothdeviceselector.BluetoothSelectorActivity.DeviceType.BSD;
 import static djslu.fydp.com.bluetoothdeviceselector.BluetoothSelectorActivity.DeviceType.LEFT_NAV;
 import static djslu.fydp.com.bluetoothdeviceselector.BluetoothSelectorActivity.DeviceType.RIGHT_NAV;
+import static djslu.fydp.com.bluetoothdeviceselector.Constants.BT_ID_BSD;
+import static djslu.fydp.com.bluetoothdeviceselector.Constants.BT_ID_LEFT_NAV;
+import static djslu.fydp.com.bluetoothdeviceselector.Constants.BT_ID_RIGHT_NAV;
+import static djslu.fydp.com.bluetoothdeviceselector.Constants.PERFS_BLUETOOTH;
+import static djslu.fydp.com.bluetoothdeviceselector.Constants.PERFS_BT_ADDRESS_BSD;
+import static djslu.fydp.com.bluetoothdeviceselector.Constants.PERFS_BT_ADDRESS_LEFT_NAV;
+import static djslu.fydp.com.bluetoothdeviceselector.Constants.PERFS_BT_ADDRESS_RIGHT_NAV;
 import static djslu.fydp.com.bluetoothdeviceselector.ScanActivity.TAG_BT_ADDRESS;
 import static djslu.fydp.com.bluetoothdeviceselector.ScanActivity.TAG_BT_TYPE;
 
@@ -29,10 +36,6 @@ public class BluetoothSelectorActivity extends AppCompatActivity implements Imag
     public static final int REQUEST_SCAN_DEVICE_BSD = 53;
     public static final int REQUEST_SCAN_DEVICE_RIGHT_NAV = 54;
     public static final int REQUEST_SCAN_DEVICE_LEFT_NAV = 55;
-
-    public static final int BT_ID_BSD = 1;
-    public static final int BT_ID_LEFT_NAV = 2;
-    public static final int BT_ID_RIGHT_NAV = 3;
 
     private Bluetooth mBtBSD, mBtRightNAV, mBtLeftNAV;
     private ImageButton mImageViewBSD, mImageViewRightNav, mImageViewLeftNav;
@@ -93,9 +96,9 @@ public class BluetoothSelectorActivity extends AppCompatActivity implements Imag
 
     @Override
     public void onMessage(int requestCode, String message) {
-        if (requestCode == BT_ID_BSD) ;
-        if (requestCode == BT_ID_RIGHT_NAV) ;
-        if (requestCode == BT_ID_LEFT_NAV) ;
+        if (requestCode == BT_ID_BSD);
+        if (requestCode == BT_ID_RIGHT_NAV);
+        if (requestCode == BT_ID_LEFT_NAV);
     }
 
     @Override
@@ -123,12 +126,14 @@ public class BluetoothSelectorActivity extends AppCompatActivity implements Imag
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bluetooth_selector);
-
         setupBluetooth();
     }
 
+
     private void setupBluetooth() {
-        this.requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_PERMISSIONS);
+        this.requestPermissions(new String[] { Manifest.permission.ACCESS_FINE_LOCATION }, REQUEST_PERMISSIONS);
+        Bluetooth.requestEnableBluetooth(this);
+
         mImageViewBSD = (ImageButton) findViewById(R.id.buttonBSD);
         mImageViewRightNav = (ImageButton) findViewById(R.id.buttonRightNav);
         mImageViewLeftNav = (ImageButton) findViewById(R.id.buttonLeftNav);
@@ -137,9 +142,15 @@ public class BluetoothSelectorActivity extends AppCompatActivity implements Imag
         mTextViewRightNav = (TextView) findViewById(R.id.textViewRightNav);
         mTextViewLeftNav = (TextView) findViewById(R.id.textViewLeftNav);
 
-        mBtBSD = new Bluetooth(this, BLE, BT_ID_BSD);
-        mBtRightNAV = new Bluetooth(this, CLASSIC, BT_ID_RIGHT_NAV);
-        mBtLeftNAV = new Bluetooth(this, CLASSIC, BT_ID_LEFT_NAV);
+        BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext();
+        BluetoothHolder bluetoothHolder = bluetoothContext.getBluetoothHolder();
+        mBtBSD = bluetoothHolder.getBluetoothBSD();
+        mBtRightNAV = bluetoothHolder.getBluetoothRightNav();
+        mBtLeftNAV = bluetoothHolder.getBluetoothLeftNav();
+
+        if (mBtBSD.isConnected()) handleConnected(BSD, mBtBSD.getDevice().getName());
+        if (mBtRightNAV.isConnected()) handleConnected(RIGHT_NAV, mBtRightNAV.getDevice().getName());
+        if (mBtLeftNAV.isConnected()) handleConnected(LEFT_NAV, mBtRightNAV.getDevice().getName());
 
         mBtBSD.registerCommunicationCallback(this);
         mBtRightNAV.registerCommunicationCallback(this);
@@ -259,19 +270,25 @@ public class BluetoothSelectorActivity extends AppCompatActivity implements Imag
     }
 
     @Override
-    public void onBackPressed() {
-        BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext();
-        BluetoothHolder bluetoothHolder = new BluetoothHolder(mBtBSD, mBtRightNAV, mBtLeftNAV);
-        bluetoothContext.setBluetoothHolder(bluetoothHolder);
-        Intent i = new Intent();
-        setResult(Activity.RESULT_OK, i);
-        super.onBackPressed();
+    protected void onStop() {
+        super.onStop();
+
+        // We need an Editor object to make preference changes.
+        // All objects are from android.context.Context
+        SharedPreferences settings = getSharedPreferences(PERFS_BLUETOOTH, 0);
+        SharedPreferences.Editor editor = settings.edit();
+        if (mBtBSD.isConnected())
+            editor.putString(PERFS_BT_ADDRESS_BSD, mBtBSD.getDeviceAddress());
+
+        if (mBtRightNAV.isConnected())
+            editor.putString(PERFS_BT_ADDRESS_RIGHT_NAV, mBtRightNAV.getDeviceAddress());
+
+        if (mBtLeftNAV.isConnected())
+            editor.putString(PERFS_BT_ADDRESS_LEFT_NAV, mBtLeftNAV.getDeviceAddress());
+
+        // Commit the edits!
+        editor.commit();
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-    }
-
-    public enum DeviceType {BSD, RIGHT_NAV, LEFT_NAV}
+    enum DeviceType {BSD, RIGHT_NAV, LEFT_NAV}
 }

@@ -36,7 +36,7 @@ public class Bluetooth {
     }
 
     private final BluetoothType mBluetoothType;
-    private final Activity mActivity;
+    private final Context context;
     private final BluetoothAdapter mBluetoothAdapter;
     private final BluetoothClassic mBluetoothClassic;
     private final BluetoothLeUart mBluetoothBle;
@@ -45,23 +45,24 @@ public class Bluetooth {
     private WeakHashMap<DiscoveryCallback, Object> mDiscoveryCallbacks;
     private WeakHashMap<CommunicationCallback, Object> mCommunicationCallbacks;
 
-    public Bluetooth(Activity activity, BluetoothType bluetoothType, int id) {
+    public Bluetooth(Context context, BluetoothType bluetoothType, int id) {
         this.mDiscoveryCallbacks = new WeakHashMap<DiscoveryCallback, Object>();
         this.mCommunicationCallbacks = new WeakHashMap<CommunicationCallback, Object>();
-        this.mActivity = activity;
+        this.context = context;
         this.mBluetoothType = bluetoothType;
         this.mId = id;
-        BluetoothManager bluetoothManager = (BluetoothManager) mActivity.getSystemService(Context.BLUETOOTH_SERVICE);
+        BluetoothManager bluetoothManager = (BluetoothManager) this.context.getSystemService(Context.BLUETOOTH_SERVICE);
         this.mBluetoothAdapter = bluetoothManager.getAdapter();
-        this.mBluetoothClassic = new BluetoothClassic(activity);
-        this.mBluetoothBle = new BluetoothLeUart(activity);
-        requestEnableBluetooth();
+        this.mBluetoothClassic = new BluetoothClassic(context);
+        this.mBluetoothBle = new BluetoothLeUart(context);
     }
 
-    private void requestEnableBluetooth() {
-        if (!mBluetoothAdapter.isEnabled()) {
+    public static void requestEnableBluetooth(Activity activity) {
+        BluetoothManager bluetoothManager = (BluetoothManager) activity.getSystemService(Context.BLUETOOTH_SERVICE);
+        BluetoothAdapter adapter = bluetoothManager.getAdapter();
+        if (!adapter.isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            mActivity.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            activity.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
         }
     }
 
@@ -146,12 +147,16 @@ public class Bluetooth {
         return device;
     }
 
-    public List<BluetoothDevice> getPairedDevices() {
-        return mBluetoothClassic.getPairedDevices();
+    public String getDeviceAddress() {
+        return getDevice().getAddress();
     }
 
-    public int getmId() {
+    public int getId () {
         return mId;
+    }
+
+    public List<BluetoothDevice> getPairedDevices() {
+        return mBluetoothClassic.getPairedDevices();
     }
 
     public void scanDevices() {

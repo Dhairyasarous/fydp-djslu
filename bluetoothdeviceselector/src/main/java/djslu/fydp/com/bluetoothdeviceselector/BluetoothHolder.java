@@ -1,13 +1,13 @@
 package djslu.fydp.com.bluetoothdeviceselector;
 
+import android.support.annotation.NonNull;
+
 import djslu.fydp.com.bluetoothdeviceselector.BluetoothLibrary.Bluetooth;
 
 public class BluetoothHolder {
-    private final Bluetooth mBluetoothBSD;
-    private final Bluetooth mBluetoothRightNav;
-    private final Bluetooth mBluetoothLeftNav;
+    private final Bluetooth mBluetoothBSD, mBluetoothRightNav, mBluetoothLeftNav;
 
-    public BluetoothHolder(Bluetooth bsd, Bluetooth rNav, Bluetooth lNav) {
+    public BluetoothHolder(@NonNull Bluetooth bsd, @NonNull Bluetooth rNav, @NonNull Bluetooth lNav) {
         this.mBluetoothBSD = bsd;
         this.mBluetoothRightNav = rNav;
         this.mBluetoothLeftNav = lNav;

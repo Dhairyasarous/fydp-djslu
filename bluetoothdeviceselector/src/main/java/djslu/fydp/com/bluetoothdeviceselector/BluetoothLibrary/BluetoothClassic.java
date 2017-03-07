@@ -1,6 +1,5 @@
 package djslu.fydp.com.bluetoothdeviceselector.BluetoothLibrary;
 
-import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -34,10 +33,10 @@ public class BluetoothClassic {
     private WeakHashMap<DiscoveryCallbackClassic, Object> mDiscoveryCallbacksClassic;
     private WeakHashMap<CommunicationCallbackClassic, Object> mCommunicationCallbacksClassic;
 
-    private Activity activity;
+    private Context context;
 
-    public BluetoothClassic(Activity activity){
-        this.activity=activity;
+    public BluetoothClassic(Context context){
+        this.context = context;
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         this.mDiscoveryCallbacksClassic = new WeakHashMap<DiscoveryCallbackClassic, Object>();
         this.mCommunicationCallbacksClassic = new WeakHashMap<CommunicationCallbackClassic, Object>();
@@ -170,12 +169,12 @@ public class BluetoothClassic {
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
 
-        activity.registerReceiver(mReceiverScan, filter);
+        context.registerReceiver(mReceiverScan, filter);
         bluetoothAdapter.startDiscovery();
     }
 
     public void pair(BluetoothDevice device){
-        activity.registerReceiver(mPairReceiver, new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED));
+        context.registerReceiver(mPairReceiver, new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED));
         devicePair=device;
         try {
             Method method = device.getClass().getMethod("createBond", (Class[]) null);
