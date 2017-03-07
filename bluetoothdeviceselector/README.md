@@ -2,18 +2,27 @@
 1. Add the Bluetooth Library to the project: `File > New > Import Module > <path to bluetooth library>`
 2. Add the library dependence to the project module: `File > Project Structure > <project module> > Dependencies > From Module > Select bluetoothdeviceselector`
 
-# Getting Bluetooth objects using the Bluetooth Library
+# Connecting the modules initially
 1. Start the BluetoothSelectorActivity
 2. Connect the modules
-3. Press Back when all of the modules have been selected
-4. The Bluetooth Objects can be accessed from the `onActivityResult` by:
+3. Upon exiting this BluetoothSelectorActivity, the connected modules will automatically reconnect next time the app is started.
 
-    <pre><code>BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext(); 
+# Getting Bluetooth objects from the Bluetooth Library
+The following code can be placed in the `onCreate` of any Activity.
+
+    BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext(); 
     BluetoothHolder bluetoothHolder = bluetoothContext.getBluetoothHolder();
     Bluetooth mBtBSD = bluetoothHolder.getBluetoothBSD();
     Bluetooth mBtRightNav = bluetoothHolder.getBluetoothRightNav();
-    Bluetooth mBtLeftNav = bluetoothHolder.getBluetoothLeftNav();</pre></code>
+    Bluetooth mBtLeftNav = bluetoothHolder.getBluetoothLeftNav();
 
 # Communicating with Bluetooth devices using the Bluetooth Objects
-1. Send: `mBtBSD.send("MESSGAGE");`
-2. Receive: create/implement `Bluetooth.CommunicationCallback` and register it using `mBtBSD.registerCommunicationCallback(callback)`. The `onMessage` function will be notified when the message arrives.
+## Send
+1. Check if bluetooth is connected `bluetoothObj.isConnected()`.
+2. Send message using `bluetoothObj.send("MESSGAGE");`.
+
+## Receive
+1. Implement `Bluetooth.CommunicationCallback` in the Activity.
+2. Register the callback to the Bluetooth Object (i.e. `bluetoothObj.registerCommunicationCallback(this)`). 
+3. The `onMessage` function will be notified when the message arrives.
+4. `onMessage` also returns an ID which corresponds to either `BT_ID_BSD`, `BT_ID_LEFT_NAV` or `BT_ID_RIGHT_NAV` so you know which module the message was receieved on.
