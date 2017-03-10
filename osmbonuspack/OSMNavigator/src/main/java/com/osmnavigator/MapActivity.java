@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -32,6 +33,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.res.ResourcesCompat;
 import android.text.InputType;
+import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.LayoutInflater;
@@ -48,6 +50,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.mapsforge.core.model.LatLong;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.mapsforge.map.rendertheme.ExternalRenderTheme;
 import org.mapsforge.map.rendertheme.XmlRenderTheme;
@@ -119,6 +122,9 @@ import java.util.Stack;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import djslu.fydp.com.bluetoothdeviceselector.*;
+import djslu.fydp.com.bluetoothdeviceselector.BluetoothLibrary.*;
+
 /**
  * Simple and general-purpose map/navigation Android application, including a KML viewer and editor.
  * It is based on osmdroid and OSMBonusPack
@@ -126,7 +132,7 @@ import java.util.concurrent.Executors;
  * @author M.Kergall
  *
  */
-public class MapActivity extends Activity implements MapEventsReceiver, LocationListener, SensorEventListener, MapView.OnFirstLayoutListener {
+public class MapActivity extends Activity implements MapEventsReceiver, LocationListener, SensorEventListener, MapView.OnFirstLayoutListener, Bluetooth.CommunicationCallback {
 	protected MapView map;
 
 	protected GeoPoint startPoint, destinationPoint;
@@ -193,6 +199,10 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	private RoadNode nextNode;
 	private double oldNextDistance = Double.MAX_VALUE;
 	private double oldNextNextDistance = Double.MAX_VALUE;
+	protected static final int BLUETOOTH_DEVICE_REQUEST = 373;
+	private Bluetooth mBtBSD;
+	private Bluetooth mBtRightNav;
+	private Bluetooth mBtLeftNav;
 
 	//region OSM Navigator Implementation
 	@Override public void onCreate(Bundle savedInstanceState) {
@@ -535,6 +545,15 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 			case KmlStylesActivity.KML_STYLES_REQUEST:
 				updateUIWithKml();
 				break;
+			case BLUETOOTH_DEVICE_REQUEST:
+				BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext();
+				BluetoothHolder bluetoothHolder = bluetoothContext.getBluetoothHolder();
+				mBtBSD = bluetoothHolder.getBluetoothBSD();
+				mBtBSD.registerCommunicationCallback(this);
+				mBtRightNav = bluetoothHolder.getBluetoothRightNav();
+				mBtRightNav.registerCommunicationCallback(this);
+				mBtLeftNav = bluetoothHolder.getBluetoothLeftNav();
+				mBtLeftNav.registerCommunicationCallback(this);
 			default:
 				break;
 		}
@@ -573,9 +592,9 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 
 	@Override protected void onPause() {
 		super.onPause();
-		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-			mLocationManager.removeUpdates(this);
-		}
+//		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+//			mLocationManager.removeUpdates(this);
+//		}
 		//TODO: mSensorManager.unregisterListener(this);
 		mFriendsManager.onPause();
 		savePrefs();
@@ -1373,10 +1392,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		else
 			menu.findItem(R.id.menu_itinerary).setEnabled(false);
 
-		if (mPOIs != null && mPOIs.size()>0)
-			menu.findItem(R.id.menu_pois).setEnabled(true);
-		else
-			menu.findItem(R.id.menu_pois).setEnabled(false);
+		menu.findItem(R.id.menu_devices).setEnabled(true);
 		return true;
 	}
 
@@ -1441,8 +1457,8 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	@Override public boolean onOptionsItemSelected(MenuItem item) {
 		Intent myIntent;
 		switch (item.getItemId()) {
-			case R.id.menu_sharing:
-				return mFriendsManager.onOptionsItemSelected(item);
+		case R.id.menu_sharing:
+			return mFriendsManager.onOptionsItemSelected(item);
 		case R.id.menu_itinerary:
 			myIntent = new Intent(this, RouteActivity.class);
 			int currentNodeId = getIndexOfBubbledMarker(mRoadNodeMarkers.getItems());
@@ -1450,10 +1466,9 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 			myIntent.putExtra("NODE_ID", currentNodeId);
 			startActivityForResult(myIntent, ROUTE_REQUEST);
 			return true;
-		case R.id.menu_pois:
-			myIntent = new Intent(this, POIActivity.class);
-			myIntent.putExtra("ID", getIndexOfBubbledMarker(mPoiMarkers.getItems()));
-			startActivityForResult(myIntent, POIS_REQUEST);
+		case R.id.menu_devices:
+			myIntent = new Intent(this, BluetoothSelectorActivity.class);
+			startActivityForResult(myIntent, BLUETOOTH_DEVICE_REQUEST);
 			return true;
 		case R.id.menu_kml_url:
 			openUrlDialog();
@@ -1729,9 +1744,20 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		for (int i = 2; i < nodeList.size(); i++) {
 			route.add(nodeList.get(i));
 		}
+
+//		ArrayList<GeoPoint> points = road.mRouteHigh;
+//
+//		int counter = 0;
+//		for (GeoPoint point : points) {
+//			updateItineraryMarker(null, point, counter,
+//					R.string.viapoint, R.drawable.marker_via, -1, null);
+//			counter++;
+//		}
 	}
 
 	public void checkNextPoint() {
+		Log.d("Location Changed", "Location Changed");
+
 		GeoPoint prevLocation = myLocationOverlay.getLocation();
 		if (route.size() > 1) {
 			RoadNode nextNextNode = cloneRoadNode(route.get(0));
@@ -1740,15 +1766,25 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 
 			if (nextNode.mManeuverType == TURN_RIGHT && distanceToNextNode <= TURN_ON_DISTANCE_THRESHOLD) {
 				// Vibrate the module for right
-				Toast.makeText(this, "Turn Right", Toast.LENGTH_SHORT).show();
+//				Toast.makeText(this, "Turn Right", Toast.LENGTH_SHORT).show();
+				if(mBtRightNav == null)
+					Toast.makeText(this, "Right navigation device not connected.", Toast.LENGTH_SHORT).show();
+				else
+					mBtRightNav.send("Hello Dhairya. Right.");
+
 			}
 			else if (nextNode.mManeuverType == TURN_LEFT && distanceToNextNode <= TURN_ON_DISTANCE_THRESHOLD) {
 				// Vibrate the module for left
-				Toast.makeText(this, "Turn Left", Toast.LENGTH_SHORT).show();
+//				Toast.makeText(this, "Turn Left", Toast.LENGTH_SHORT).show();
+				if(mBtRightNav == null)
+					Toast.makeText(this, "Left navigation device not connected.", Toast.LENGTH_SHORT).show();
+				else
+					mBtLeftNav.send("Hello Dhairya. Left.");
+
 			}
 
 			if (nodeDistance.checkIfAscendingDistance()) {
-				Toast.makeText(this, "Passed point", Toast.LENGTH_SHORT).show();
+//				Toast.makeText(this, "Passed point", Toast.LENGTH_SHORT).show();
 				nextNode = cloneRoadNode(route.get(0));
 				oldNextDistance = distanceToNextNextNode;
 				oldNextNextDistance = Double.MIN_VALUE;
@@ -1792,10 +1828,6 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		}
 	}
 
-	public void isFurtherFromNode() {
-
-	}
-
 	public RoadNode cloneRoadNode(RoadNode original) {
 		RoadNode clone = new RoadNode();
 		clone.mManeuverType = original.mManeuverType;
@@ -1805,5 +1837,68 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		clone.mDuration = original.mDuration;
 		clone.mLocation = original.mLocation;
 		return clone;
+	}
+
+	@Override
+	public void onConnected(int requestCode, BluetoothDevice device) {
+		switch (requestCode) {
+			case Constants.BT_ID_BSD:
+				break;
+			case Constants.BT_ID_LEFT_NAV:
+				break;
+			case Constants.BT_ID_RIGHT_NAV:
+				break;
+		}
+	}
+
+	@Override
+	public void onDisconnected(int requestCode) {
+		switch (requestCode) {
+			case Constants.BT_ID_BSD:
+				break;
+			case Constants.BT_ID_LEFT_NAV:
+				break;
+			case Constants.BT_ID_RIGHT_NAV:
+				break;
+		}
+	}
+
+	@Override
+	public void onMessage(int requestCode, String message) {
+		switch (requestCode) {
+			case Constants.BT_ID_BSD:
+				String s = message;
+				break;
+			case Constants.BT_ID_LEFT_NAV:
+				String a = message;
+				break;
+			case Constants.BT_ID_RIGHT_NAV:
+				String b = message;
+				break;
+		}
+	}
+
+	@Override
+	public void onErrorCommunication(int requestCode, String message) {
+		switch (requestCode) {
+			case Constants.BT_ID_BSD:
+				break;
+			case Constants.BT_ID_LEFT_NAV:
+				break;
+			case Constants.BT_ID_RIGHT_NAV:
+				break;
+		}
+	}
+
+	@Override
+	public void onConnectError(int requestCode, String message) {
+		switch (requestCode) {
+			case Constants.BT_ID_BSD:
+				break;
+			case Constants.BT_ID_LEFT_NAV:
+				break;
+			case Constants.BT_ID_RIGHT_NAV:
+				break;
+		}
 	}
 }

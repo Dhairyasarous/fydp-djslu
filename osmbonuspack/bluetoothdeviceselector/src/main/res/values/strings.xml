@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">bluetoothdeviceselector</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_disconnecting">Disconnecting…</string>
+</resources>

@@ -1,0 +1,27 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="djslu.fydp.com.bluetoothdeviceselector">
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-feature android:name="android.hardware.location.gps" />
+
+
+
+    <application
+        android:name=".BluetoothContext"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:supportsRtl="true">
+        <activity
+            android:name=".ScanActivity"
+            android:label="@string/app_name"
+            android:screenOrientation="portrait">
+        </activity>
+
+        <activity
+            android:name=".BluetoothSelectorActivity"
+            android:label="@string/app_name"
+            android:screenOrientation="portrait">
+        </activity>
+    </application>
+</manifest>
