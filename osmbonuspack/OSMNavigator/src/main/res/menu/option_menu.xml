@@ -45,9 +45,9 @@
         android:icon="@drawable/ic_menu_itinerary"
         android:title="@string/menu_itinerary"/>
     <item
-        android:id="@+id/menu_pois"
-        android:icon="@drawable/ic_menu_poi"
-        android:title="@string/menu_pois"/>
+        android:id="@+id/menu_devices"
+		android:icon="@drawable/ic_menu_itinerary"
+        android:title="@string/menu_devices"/>
     <item
         android:id="@+id/menu_tile"
         android:icon="@android:drawable/ic_menu_more"

@@ -52,7 +52,7 @@
 	<string name="menu_start_sharing">Share with Friends</string>
 	<string name="menu_stop_sharing">Stop Sharing</string>
 	<string name="menu_itinerary">Itinerary</string>
-	<string name="menu_pois">Features list</string>
+	<string name="menu_devices">Device List</string>
 	<string name="menu_cache">Cache Manager</string>
 	<string name="menu_download_view_area">Download view area</string>
 	<string name="menu_clear_view_area">Clear view area</string>
