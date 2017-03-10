@@ -4,10 +4,13 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.TypedArray;
@@ -203,11 +206,26 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	private Bluetooth mBtBSD;
 	private Bluetooth mBtRightNav;
 	private Bluetooth mBtLeftNav;
+	private BluetoothAdapter mAdapter;
 
 	//region OSM Navigator Implementation
 	@Override public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
+		/**
+		 * Bluetooth
+		 */
+		mAdapter = BluetoothAdapter.getDefaultAdapter();
+		this.registerReceiver(mBluetoothStateReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
+		if (!isBluetoothEnabled()) {
+			enableBluetooth();
+		} else {
+			initializeBluetoothContextAndAutoConnect();
+		}
+
+		/**
+		 * OSM Navigator
+		 */
 		Configuration.getInstance().setOsmdroidBasePath(new File(Environment.getExternalStorageDirectory(), "osmdroid"));
 		Configuration.getInstance().setOsmdroidTileCache(new File(Environment.getExternalStorageDirectory(), "osmdroid/tiles"));
 
@@ -546,14 +564,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 				updateUIWithKml();
 				break;
 			case BLUETOOTH_DEVICE_REQUEST:
-				BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext();
-				BluetoothHolder bluetoothHolder = bluetoothContext.getBluetoothHolder();
-				mBtBSD = bluetoothHolder.getBluetoothBSD();
-				mBtBSD.registerCommunicationCallback(this);
-				mBtRightNav = bluetoothHolder.getBluetoothRightNav();
-				mBtRightNav.registerCommunicationCallback(this);
-				mBtLeftNav = bluetoothHolder.getBluetoothLeftNav();
-				mBtLeftNav.registerCommunicationCallback(this);
+				// Place bluetooth related stuff here
 			default:
 				break;
 		}
@@ -1746,7 +1757,10 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		}
 
 //		ArrayList<GeoPoint> points = road.mRouteHigh;
-//
+
+//		Polyline roadLine = RoadManager.buildRoadOverlay(road);
+//		List<GeoPoint> points = roadLine.getPoints();
+
 //		int counter = 0;
 //		for (GeoPoint point : points) {
 //			updateItineraryMarker(null, point, counter,
@@ -1839,6 +1853,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		return clone;
 	}
 
+	//region Bluetooth
 	@Override
 	public void onConnected(int requestCode, BluetoothDevice device) {
 		switch (requestCode) {
@@ -1901,4 +1916,59 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 				break;
 		}
 	}
+
+	private boolean isBluetoothEnabled() {
+		return mAdapter != null && mAdapter.isEnabled();
+	}
+
+	private void enableBluetooth() {
+		if(mAdapter!=null) {
+			if (!mAdapter.isEnabled()) {
+				mAdapter.enable(); // this directly enables bluetooth. Doesn't ask for user premission
+			}
+		}
+	}
+
+	private void initializeBluetoothContextAndAutoConnect() {
+		BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext();
+		if (!bluetoothContext.isBluetoothContextInitialized()) {
+			bluetoothContext.initialize();
+			BluetoothHolder bluetoothHolder = bluetoothContext.getBluetoothHolder();
+
+			mBtBSD = bluetoothHolder.getBluetoothBSD();
+			mBtRightNav = bluetoothHolder.getBluetoothRightNav();
+			mBtLeftNav = bluetoothHolder.getBluetoothLeftNav();
+			mBtBSD.registerCommunicationCallback(MapActivity.this);
+			mBtRightNav.registerCommunicationCallback(MapActivity.this);
+			mBtLeftNav.registerCommunicationCallback(MapActivity.this);
+		}
+		bluetoothContext.autoConnect();
+	}
+
+	private final BroadcastReceiver mBluetoothStateReceiver = new BroadcastReceiver() {
+		@Override
+		public void onReceive(Context context, Intent intent) {
+
+			String action = intent.getAction();
+
+			// It means the user has changed his bluetooth state.
+			if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
+
+				if (mAdapter.getState() == BluetoothAdapter.STATE_TURNING_OFF) {
+					// The user bluetooth is turning off yet, but it is not disabled yet.
+					enableBluetooth();
+				}
+
+				if (mAdapter.getState() == BluetoothAdapter.STATE_OFF) {
+					// The user bluetooth is already disabled.
+					enableBluetooth();
+				}
+
+				if (mAdapter.getState() == BluetoothAdapter.STATE_ON) {
+					initializeBluetoothContextAndAutoConnect();
+				}
+			}
+		}
+	};
+	//endregion
 }
