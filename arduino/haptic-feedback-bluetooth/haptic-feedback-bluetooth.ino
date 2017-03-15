@@ -7,10 +7,15 @@ SoftwareSerial BT(10, 11); // connect BT module TX to D10, RX to D11, Vcc to 5V 
 char bluetooth_input; // stores incoming character from other device
 
 // haptic feedback
-Adafruit_DRV2605 drv;
-static const long VIBRATION_INTERVAL = 500; // milliseconds
-static const uint8_t pattern_high = 16, pattern_mid = 15, pattern_low = 14, pattern_off = 0;
-uint8_t current_vibration_pattern;
+#define pwmPin1 3
+#define pwmPin2 5
+typedef struct{
+  int time_on;
+  int time_off;
+} Pattern; 
+static Pattern pattern_high, pattern_mid, pattern_low, pattern_off;
+static Pattern* current_pattern;
+static int current_state;
 long previous_millis = 0;
 
 // led pin
@@ -25,24 +30,49 @@ void setup()
   BT.begin(9600);
 
   // haptic feedback
-  current_vibration_pattern = pattern_off;
-  drv.begin();
-  drv.selectLibrary(1);
-  drv.setMode(DRV2605_MODE_INTTRIG);
+  current_state = 0;
+  pattern_high.time_on = 900;
+  pattern_high.time_off = 100;
+  pattern_mid.time_on = 500;
+  pattern_mid.time_off = 500;
+  pattern_low.time_on = 100;
+  pattern_low.time_off = 750;
+  pattern_off.time_on = 0;
+  pattern_off.time_off = 1000;
+  pinMode(pwmPin1, OUTPUT);
+  pinMode(pwmPin2, OUTPUT);
 
   // led
   pinMode(13, OUTPUT);
   digitalWrite(13, HIGH); // turn on led to signal on state for device
 }
 
-void setNewPattern()
+void setState(int state) {
+  digitalWrite(pwmPin1, state);
+  digitalWrite(pwmPin2, state);
+  current_state = state;
+  Serial.print("current_state=");
+  Serial.println(state);
+}
+
+void setPattern(Pattern *pattern) 
 {
   unsigned long current_millis = millis();
-  if (current_millis - previous_millis >= VIBRATION_INTERVAL) {
-    previous_millis = current_millis;
-    drv.setWaveform(0, current_vibration_pattern);
-    drv.setWaveform(1, 0);
-    drv.go();
+  unsigned long interval;
+
+  if (current_state == 1) {                     // current state is on
+    interval = pattern->time_on;
+     if (current_millis - previous_millis >= interval) {
+        previous_millis = current_millis;
+        setState(0);
+     } 
+  }
+  else {                                        // current state is off
+    interval = pattern->time_off;
+    if (current_millis - previous_millis >= interval) {
+        previous_millis = current_millis;
+        setState(1);
+    }
   }
 }
 
@@ -51,16 +81,16 @@ void loopBluetooth() {
   {
     bluetooth_input = (BT.read());
     if (bluetooth_input == '0') {
-      current_vibration_pattern = pattern_off;
+      current_pattern = &pattern_off;
     }
     else if (bluetooth_input == '1') {
-      current_vibration_pattern = pattern_high;
+      current_pattern = &pattern_high;
     }
     else if (bluetooth_input == '2') {
-      current_vibration_pattern = pattern_mid;
+      current_pattern = &pattern_mid;
     }
     else if (bluetooth_input == '3') {
-      current_vibration_pattern = pattern_low;
+      current_pattern = &pattern_low;
     }
     Serial.print ("bluetooth_input = ");
     Serial.println(bluetooth_input);
@@ -72,16 +102,16 @@ void loopSerial() {
   {
     char serial_input = (Serial.read());
     if (serial_input == '0') {
-      current_vibration_pattern = pattern_off;
+      current_pattern = &pattern_off;
     }
     else if (serial_input == '1') {
-      current_vibration_pattern = pattern_high;
+      current_pattern = &pattern_high;
     }
     else if (serial_input == '2') {
-      current_vibration_pattern = pattern_mid;
+      current_pattern = &pattern_mid;
     }
     else if (serial_input == '3') {
-      current_vibration_pattern = pattern_low;
+      current_pattern = &pattern_low;
     }
 
     Serial.print ("serial_input = ");
@@ -91,6 +121,7 @@ void loopSerial() {
 
 void loop()
 {
+//  loopSerial();
   loopBluetooth();
-  setNewPattern();
+  setPattern(current_pattern);
 }
