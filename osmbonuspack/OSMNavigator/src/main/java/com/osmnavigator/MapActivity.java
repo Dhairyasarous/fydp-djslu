@@ -4,10 +4,13 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.TypedArray;
@@ -115,6 +118,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -203,11 +207,26 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	private Bluetooth mBtBSD;
 	private Bluetooth mBtRightNav;
 	private Bluetooth mBtLeftNav;
+	private BluetoothAdapter mAdapter;
 
 	//region OSM Navigator Implementation
 	@Override public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
+		/**
+		 * Bluetooth
+		 */
+		mAdapter = BluetoothAdapter.getDefaultAdapter();
+		this.registerReceiver(mBluetoothStateReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
+		if (!isBluetoothEnabled()) {
+			enableBluetooth();
+		} else {
+			initializeBluetoothContextAndAutoConnect();
+		}
+
+		/**
+		 * OSM Navigator
+		 */
 		Configuration.getInstance().setOsmdroidBasePath(new File(Environment.getExternalStorageDirectory(), "osmdroid"));
 		Configuration.getInstance().setOsmdroidTileCache(new File(Environment.getExternalStorageDirectory(), "osmdroid/tiles"));
 
@@ -352,7 +371,8 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		//(a little bit strange, but if we register it on mapView, it will catch map drag events)
 
 		//Route and Directions
-		mWhichRouteProvider = prefs.getInt("ROUTE_PROVIDER", OSRM);
+//		mWhichRouteProvider = prefs.getInt("ROUTE_PROVIDER", OSRM);
+		mWhichRouteProvider = GRAPHHOPPER_BICYCLE;
 
 		mRoadNodeMarkers = new FolderOverlay();
 		mRoadNodeMarkers.setName("Route Steps");
@@ -546,14 +566,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 				updateUIWithKml();
 				break;
 			case BLUETOOTH_DEVICE_REQUEST:
-				BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext();
-				BluetoothHolder bluetoothHolder = bluetoothContext.getBluetoothHolder();
-				mBtBSD = bluetoothHolder.getBluetoothBSD();
-				mBtBSD.registerCommunicationCallback(this);
-				mBtRightNav = bluetoothHolder.getBluetoothRightNav();
-				mBtRightNav.registerCommunicationCallback(this);
-				mBtLeftNav = bluetoothHolder.getBluetoothLeftNav();
-				mBtLeftNav.registerCommunicationCallback(this);
+				// Place bluetooth related stuff here
 			default:
 				break;
 		}
@@ -931,7 +944,8 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 			Toast.makeText(map.getContext(), "No possible route here", Toast.LENGTH_SHORT).show();
 		mRoadOverlays = new Polyline[roads.length];
 		for (int i=0; i<roads.length; i++) {
-			// Build the road for our use
+			// Pre compute the road's nodes
+			roads[i].mNodes = this.preComputeRoadNodes(roads[i].mRouteHigh, roads[i].mNodes);
 			buildRoadPoints(roads[i]);
 			Polyline roadPolyline = RoadManager.buildRoadOverlay(roads[i]);
 			mRoadOverlays[i] = roadPolyline;
@@ -1739,25 +1753,16 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		// Copy the new nodes into the list
 		ArrayList<RoadNode> nodeList = road.mNodes;
 
-		// Set the next node
+		// Set the next node as the second node (since we want to skip the 1st)
 		nextNode = nodeList.get(1);
+
+		// Iterate through the rest of the nodes and add them to the list
 		for (int i = 2; i < nodeList.size(); i++) {
 			route.add(nodeList.get(i));
 		}
-
-//		ArrayList<GeoPoint> points = road.mRouteHigh;
-//
-//		int counter = 0;
-//		for (GeoPoint point : points) {
-//			updateItineraryMarker(null, point, counter,
-//					R.string.viapoint, R.drawable.marker_via, -1, null);
-//			counter++;
-//		}
 	}
 
 	public void checkNextPoint() {
-		Log.d("Location Changed", "Location Changed");
-
 		GeoPoint prevLocation = myLocationOverlay.getLocation();
 		if (route.size() > 1) {
 			RoadNode nextNextNode = cloneRoadNode(route.get(0));
@@ -1767,24 +1772,21 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 			if (nextNode.mManeuverType == TURN_RIGHT && distanceToNextNode <= TURN_ON_DISTANCE_THRESHOLD) {
 				// Vibrate the module for right
 //				Toast.makeText(this, "Turn Right", Toast.LENGTH_SHORT).show();
-				if(mBtRightNav == null)
+				if(mBtRightNav.isConnected()) {
 					Toast.makeText(this, "Right navigation device not connected.", Toast.LENGTH_SHORT).show();
-				else
 					mBtRightNav.send("Hello Dhairya. Right.");
-
+				}
 			}
 			else if (nextNode.mManeuverType == TURN_LEFT && distanceToNextNode <= TURN_ON_DISTANCE_THRESHOLD) {
 				// Vibrate the module for left
 //				Toast.makeText(this, "Turn Left", Toast.LENGTH_SHORT).show();
-				if(mBtRightNav == null)
+				if(mBtRightNav.isConnected()) {
 					Toast.makeText(this, "Left navigation device not connected.", Toast.LENGTH_SHORT).show();
-				else
 					mBtLeftNav.send("Hello Dhairya. Left.");
-
+				}
 			}
 
 			if (nodeDistance.checkIfAscendingDistance()) {
-//				Toast.makeText(this, "Passed point", Toast.LENGTH_SHORT).show();
 				nextNode = cloneRoadNode(route.get(0));
 				oldNextDistance = distanceToNextNextNode;
 				oldNextNextDistance = Double.MIN_VALUE;
@@ -1828,6 +1830,87 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		}
 	}
 
+	public ArrayList<RoadNode> preComputeRoadNodes(List<GeoPoint> geoPointNodes, List<RoadNode> existingRoadNodes) {
+		// Instantiate local variables
+		ArrayList<RoadNode> result = new ArrayList<>();
+		Iterator<GeoPoint> nodeIterator = geoPointNodes.iterator();
+		Iterator<RoadNode> roadNodeIterator = existingRoadNodes.iterator();
+
+		// Add the initial point
+		result.add(roadNodeIterator.next());
+		nodeIterator.next();
+
+		// Initialize the local variables
+		double prevAngle = 0;
+		double curAngle = 0;
+		GeoPoint prevPoint = null;
+		GeoPoint curPoint = nodeIterator.next();
+		RoadNode roadNode = roadNodeIterator.next();
+
+		while (nodeIterator.hasNext()) {
+			// Set the current and previous point
+			prevPoint = curPoint;
+			curPoint = nodeIterator.next();
+
+			// Create local variables for getting the bearing
+			Location prevLocation = new Location("");
+			Location curLocation = new Location("");
+			prevLocation.setLongitude(prevPoint.getLongitude());
+			prevLocation.setLatitude(prevPoint.getLatitude());
+			curLocation.setLongitude(curPoint.getLongitude());
+			curLocation.setLatitude(curPoint.getLatitude());
+
+			// Set the current and previous angle
+			prevAngle = curAngle;
+			curAngle = prevLocation.bearingTo(curLocation);
+
+			// Calculate the bearings
+			double difference = prevAngle - curAngle;
+			bearings prevBearing = getBearing(prevAngle);
+			bearings curBearing = getBearing(curAngle);
+
+			// Check if the point is actually a turn
+			if (prevAngle != 0 && Math.abs(difference) > 40) {
+				int direction = 0;
+
+				if (prevBearing == bearings.NE && curBearing == bearings.SE
+						|| (prevBearing == bearings.SW && curBearing == bearings.NW)
+						|| (prevBearing == bearings.NW && curBearing == bearings.NE)
+						|| (prevBearing == bearings.SE && curBearing == bearings.SW)
+						|| (prevBearing == bearings.NE && curBearing == bearings.SE)) {
+					direction = TURN_RIGHT;
+				} else {
+					direction = TURN_LEFT;
+				}
+
+				// Add the turn node to the list
+				if (prevPoint.getLongitude() == roadNode.mLocation.getLongitude()
+						&& prevPoint.getLatitude() == roadNode.mLocation.getLongitude()) {
+					result.add(roadNode);
+					roadNode = roadNodeIterator.next();
+				}
+				else {
+					result.add(this.createRoadNode(direction, prevPoint));
+				}
+			}
+		}
+
+		// Add the remaining points
+		while (roadNodeIterator.hasNext()) {
+			result.add(roadNodeIterator.next());
+		}
+
+		// Return the new list
+		return result;
+	}
+
+	public RoadNode createRoadNode(int maneuverType, GeoPoint geoPoint) {
+		RoadNode roadNode = new RoadNode();
+		roadNode.mManeuverType = maneuverType;
+		roadNode.mLocation = new GeoPoint(geoPoint);
+		return roadNode;
+	}
+
 	public RoadNode cloneRoadNode(RoadNode original) {
 		RoadNode clone = new RoadNode();
 		clone.mManeuverType = original.mManeuverType;
@@ -1839,6 +1922,27 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		return clone;
 	}
 
+	public bearings getBearing(double degrees) {
+
+		if (degrees >= 0 && degrees <= 90) {
+			return bearings.NE;
+		}
+		else if (degrees > 90 && degrees <= 180) {
+			return bearings.SE;
+		}
+		else if (degrees < 0 && degrees >= -90) {
+			return bearings.NW;
+		}
+		else if (degrees < -90 && degrees >= -180) {
+			return bearings.SW;
+		}
+
+		return null;
+		//        throw new Exception("Bearing not found.");
+
+	}
+
+	//region Bluetooth
 	@Override
 	public void onConnected(int requestCode, BluetoothDevice device) {
 		switch (requestCode) {
@@ -1901,4 +2005,59 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 				break;
 		}
 	}
+
+	private boolean isBluetoothEnabled() {
+		return mAdapter != null && mAdapter.isEnabled();
+	}
+
+	private void enableBluetooth() {
+		if(mAdapter!=null) {
+			if (!mAdapter.isEnabled()) {
+				mAdapter.enable(); // this directly enables bluetooth. Doesn't ask for user premission
+			}
+		}
+	}
+
+	private void initializeBluetoothContextAndAutoConnect() {
+		BluetoothContext bluetoothContext = (BluetoothContext) getApplicationContext();
+		if (!bluetoothContext.isBluetoothContextInitialized()) {
+			bluetoothContext.initialize();
+			BluetoothHolder bluetoothHolder = bluetoothContext.getBluetoothHolder();
+
+			mBtBSD = bluetoothHolder.getBluetoothBSD();
+			mBtRightNav = bluetoothHolder.getBluetoothRightNav();
+			mBtLeftNav = bluetoothHolder.getBluetoothLeftNav();
+			mBtBSD.registerCommunicationCallback(MapActivity.this);
+			mBtRightNav.registerCommunicationCallback(MapActivity.this);
+			mBtLeftNav.registerCommunicationCallback(MapActivity.this);
+		}
+		bluetoothContext.autoConnect();
+	}
+
+	private final BroadcastReceiver mBluetoothStateReceiver = new BroadcastReceiver() {
+		@Override
+		public void onReceive(Context context, Intent intent) {
+
+			String action = intent.getAction();
+
+			// It means the user has changed his bluetooth state.
+			if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
+
+				if (mAdapter.getState() == BluetoothAdapter.STATE_TURNING_OFF) {
+					// The user bluetooth is turning off yet, but it is not disabled yet.
+					enableBluetooth();
+				}
+
+				if (mAdapter.getState() == BluetoothAdapter.STATE_OFF) {
+					// The user bluetooth is already disabled.
+					enableBluetooth();
+				}
+
+				if (mAdapter.getState() == BluetoothAdapter.STATE_ON) {
+					initializeBluetoothContextAndAutoConnect();
+				}
+			}
+		}
+	};
+	//endregion
 }
