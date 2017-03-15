@@ -67,6 +67,10 @@ void setup() {
 }
 
 void print_debug(Sensor *sensor) {
+    Serial.print("global distance = ");
+    Serial.print(global_distance);
+    Serial.print("cm, ");
+    
     Serial.print("distance = ");
     Serial.print(sensor->raw_distance);
     Serial.print(" cm, ");
@@ -143,6 +147,8 @@ void loop_sensor() {
     // set the global distance based on the information from all of the sensors, and decide whether to warn the user
     global_distance = min(sensor_left.filtered_distance, sensor_right.filtered_distance);
     global_warn_user = sensor_left.warn_user || sensor_right.warn_user;
+
+    print_debug(&sensor_right);
   }
 }
 
@@ -201,6 +207,6 @@ void loop_bluetooth() {
 
 void loop() {
   loop_sensor();
-  loop_bluetooth();
+//  loop_bluetooth();
 }
 
