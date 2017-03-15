@@ -5,10 +5,12 @@
 static const long MILLI_TO_SEC = 1000;
 
 /* SENSOR */
-#define trigPinSensorLeft 7
-#define echoPinSensorLeft 6
-#define trigPinSensorRight 5
-#define echoPinSensorRight 4
+#define trigPinSensorLeft 8
+#define echoPinSensorLeft 7
+#define trigPinSensorRight 6
+#define echoPinSensorRight 5
+#define trigPinSensorCenter 4
+#define echoPinSensorCenter 3
 
 static const long MAX_RANGE = 500; // cm
 static const long SENSOR_INTERVAL = 100; // milliseconds
@@ -41,6 +43,7 @@ static const double ALPHA = 0.3; // alpha parameter for low pass filter
 
 static Sensor sensor_left;
 static Sensor sensor_right;
+static Sensor sensor_center;
 static double global_distance;
 static double global_warn_user;
 
@@ -56,8 +59,11 @@ void setup() {
   sensor_left.echoPin = (int)echoPinSensorLeft;
   sensor_right.trigPin = (int)trigPinSensorRight;
   sensor_right.echoPin = (int)echoPinSensorRight;
+  sensor_center.trigPin = (int)trigPinSensorCenter;
+  sensor_center.echoPin = (int)echoPinSensorCenter;
   setupSensor(&sensor_left);
   setupSensor(&sensor_right);
+  setupSensor(&sensor_center);
 
   /* NRF8001 */
   while(!Serial); // Leonardo/Micro should wait for serial init
@@ -144,9 +150,14 @@ void loop_sensor() {
     apply_filtering_and_calc_velocity(&sensor_right);
     compute_bsd(&sensor_right);
 
+    // compute bsd for right sensor
+    get_distance(&sensor_center);
+    apply_filtering_and_calc_velocity(&sensor_center);
+    compute_bsd(&sensor_center);
+
     // set the global distance based on the information from all of the sensors, and decide whether to warn the user
-    global_distance = min(sensor_left.filtered_distance, sensor_right.filtered_distance);
-    global_warn_user = sensor_left.warn_user || sensor_right.warn_user;
+    global_distance = min(sensor_center.filtered_distance, min(sensor_left.filtered_distance, sensor_right.filtered_distance));
+    global_warn_user = sensor_left.warn_user || sensor_right.warn_user || sensor_center.warn_user;
 
     print_debug(&sensor_right);
   }
@@ -207,6 +218,6 @@ void loop_bluetooth() {
 
 void loop() {
   loop_sensor();
-//  loop_bluetooth();
+  loop_bluetooth();
 }
 
