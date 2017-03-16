@@ -45,7 +45,7 @@ static Sensor sensor_left;
 static Sensor sensor_right;
 static Sensor sensor_center;
 static double global_distance;
-static double global_warn_user;
+static double global_warn_user, previous_global_warn_user = 0;
 
 void setupSensor(Sensor *sensor) {
   pinMode(sensor->trigPin, OUTPUT);
@@ -163,6 +163,10 @@ void loop_sensor() {
   }
 }
 
+int is_bsd_state_changed() {
+  return global_warn_user == previous_global_warn_user ? 0 : 1;
+}
+
 void loop_bluetooth() {
   /* NRF8001 */
   // Tell the nRF8001 to do whatever it should be working on.
@@ -198,9 +202,9 @@ void loop_bluetooth() {
       Serial.print(c);
     }
 
-    if (global_warn_user == 1) {
+    if (is_bsd_state_changed()) {
       // Send the distance using bluetooth
-      String s = String(global_distance);
+      String s = String(global_warn_user);
   
       // We need to convert the line to bytes, no more than 20 at this time
       uint8_t sendbuffer[20];
