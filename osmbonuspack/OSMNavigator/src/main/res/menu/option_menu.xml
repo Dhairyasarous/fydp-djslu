@@ -5,40 +5,40 @@
 		android:icon="@drawable/ic_menu_sharing"
 		android:title="@string/menu_start_sharing"/>
 	<item
-		android:id="@+id/menu_kml"
+		android:id="@+id/menu_demo"
 		android:icon="@android:drawable/ic_menu_more"
-		android:title="@string/menu_kml">
-		<menu>
-			<group>
-				<item
-					android:id="@+id/menu_kml_url"
-					android:title="@string/menu_kml_url"/>
-				<item
-					android:id="@+id/menu_open_file"
-					android:title="@string/menu_open_file"/>
-				<item
-					android:id="@+id/menu_overpass_api"
-					android:title="@string/menu_overpassapi_wizard"/>
-				<item
-					android:id="@+id/menu_kml_record_track"
-					android:title="@string/menu_kml_record_tracks"/>
-				<item
-					android:id="@+id/menu_kml_get_overlays"
-					android:title="@string/menu_kml_get_overlays"/>
-				<item
-					android:id="@+id/menu_kml_tree"
-					android:title="@string/menu_kml_tree"/>
-				<item
-					android:id="@+id/menu_kml_styles"
-					android:title="@string/menu_kml_styles"/>
-				<item
-					android:id="@+id/menu_save_file"
-					android:title="@string/menu_save_file"/>
-				<item
-					android:id="@+id/menu_kml_clear"
-					android:title="@string/menu_kml_clear"/>
-			</group>
-		</menu>
+		android:title="@string/menu_demo">
+		<!--<menu>-->
+			<!--<group>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_kml_url"-->
+					<!--android:title="@string/menu_kml_url"/>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_open_file"-->
+					<!--android:title="@string/menu_open_file"/>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_overpass_api"-->
+					<!--android:title="@string/menu_overpassapi_wizard"/>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_kml_record_track"-->
+					<!--android:title="@string/menu_kml_record_tracks"/>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_kml_get_overlays"-->
+					<!--android:title="@string/menu_kml_get_overlays"/>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_kml_tree"-->
+					<!--android:title="@string/menu_kml_tree"/>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_kml_styles"-->
+					<!--android:title="@string/menu_kml_styles"/>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_save_file"-->
+					<!--android:title="@string/menu_save_file"/>-->
+				<!--<item-->
+					<!--android:id="@+id/menu_kml_clear"-->
+					<!--android:title="@string/menu_kml_clear"/>-->
+			<!--</group>-->
+		<!--</menu>-->
 	</item>
     <item
         android:id="@+id/menu_itinerary"

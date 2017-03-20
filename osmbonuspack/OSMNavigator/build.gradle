@@ -28,4 +28,5 @@ dependencies {
     compile 'org.osmdroid:osmdroid-mapsforge:5.5:release@aar'
     compile 'org.mapsforge:mapsforge-map-android:0.6.1'
     compile 'org.mapsforge:mapsforge-map:0.6.1'
+    compile 'com.android.support:appcompat-v7:25.1.0'
 }

@@ -194,20 +194,30 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	static String geonamesAccount;
 
 	// Our own implementation
-	private enum bearings {NE,NW,SE,SW};
+	private enum bearings {NE1,NE2,NW1,NW2,SE1,SE2,SW1,SW2};
 	private ArrayList<RoadNode> route = new ArrayList<>();
 	private NodeDistance nodeDistance = new NodeDistance(2);
 	static final int TURN_LEFT = 4;
 	static final int TURN_RIGHT = 7;
-	private final double TURN_ON_DISTANCE_THRESHOLD = 50;
+	private final double TURN_ON_DISTANCE_THRESHOLD = 100;
+	private final double TURN_ON_LOW_DISTANCE = 100;
+	private final double TURN_ON_MEDIUM_DISTANCE = 50;
+	private final double TURN_ON_HIGH_DISTANCE = 20;
 	private RoadNode nextNode;
 	private double oldNextDistance = Double.MAX_VALUE;
 	private double oldNextNextDistance = Double.MAX_VALUE;
 	protected static final int BLUETOOTH_DEVICE_REQUEST = 373;
+	protected static final int DEMO_REQUEST = 374;
 	private Bluetooth mBtBSD;
 	private Bluetooth mBtRightNav;
 	private Bluetooth mBtLeftNav;
 	private BluetoothAdapter mAdapter;
+	private MapActivity.VibrationIntensity mRightVibrationIntensity;
+	private MapActivity.VibrationIntensity mLeftVibrationIntensity;
+
+	public enum VibrationIntensity {NONE, HIGH, MEDIUM, LOW};
+	public static VibrationIntensity mVibrationIntensity;
+
 
 	//region OSM Navigator Implementation
 	@Override public void onCreate(Bundle savedInstanceState) {
@@ -1484,44 +1494,48 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 			myIntent = new Intent(this, BluetoothSelectorActivity.class);
 			startActivityForResult(myIntent, BLUETOOTH_DEVICE_REQUEST);
 			return true;
-		case R.id.menu_kml_url:
-			openUrlDialog();
+		case R.id.menu_demo:
+			myIntent = new Intent(this, DemoActivity.class);
+			startActivityForResult(myIntent, DEMO_REQUEST);
 			return true;
-		case R.id.menu_open_file:
-			openLocalFileDialog(true);
-			return true;
-		case R.id.menu_overpass_api:
-			openOverpassAPIWizard();
-			return true;
-			case R.id.menu_kml_record_track:
-				mIsRecordingTrack = !mIsRecordingTrack;
-				mFriendsManager.setTracksRecording(mIsRecordingTrack);
-				if (mIsRecordingTrack)
-					item.setTitle(R.string.menu_kml_stop_record_tracks);
-				else
-					item.setTitle(R.string.menu_kml_record_tracks);
-				return true;
-		case R.id.menu_kml_get_overlays:
-			insertOverlaysInKml();
-			updateUIWithKml();
-			return true;
-		case R.id.menu_kml_tree:
-			myIntent = new Intent(this, KmlTreeActivity.class);
-			//myIntent.putExtra("KML", mKmlDocument.kmlRoot);
-			mKmlStack.push(mKmlDocument.mKmlRoot);
-			startActivityForResult(myIntent, KmlTreeActivity.KML_TREE_REQUEST);
-			return true;
-		case R.id.menu_kml_styles:
-			myIntent = new Intent(this, KmlStylesActivity.class);
-			startActivityForResult(myIntent, KmlStylesActivity.KML_STYLES_REQUEST);
-			return true;
-		case R.id.menu_save_file:
-			openLocalFileDialog(false);
-			return true;
-		case R.id.menu_kml_clear:
-			mKmlDocument = new KmlDocument();
-			updateUIWithKml();
-			return true;
+//		case R.id.menu_kml_url:
+//			openUrlDialog();
+//			return true;
+//		case R.id.menu_open_file:
+//			openLocalFileDialog(true);
+//			return true;
+//		case R.id.menu_overpass_api:
+//			openOverpassAPIWizard();
+//			return true;
+//			case R.id.menu_kml_record_track:
+//				mIsRecordingTrack = !mIsRecordingTrack;
+//				mFriendsManager.setTracksRecording(mIsRecordingTrack);
+//				if (mIsRecordingTrack)
+//					item.setTitle(R.string.menu_kml_stop_record_tracks);
+//				else
+//					item.setTitle(R.string.menu_kml_record_tracks);
+//				return true;
+//		case R.id.menu_kml_get_overlays:
+//			insertOverlaysInKml();
+//			updateUIWithKml();
+//			return true;
+//		case R.id.menu_kml_tree:
+//			myIntent = new Intent(this, KmlTreeActivity.class);
+//			//myIntent.putExtra("KML", mKmlDocument.kmlRoot);
+//			mKmlStack.push(mKmlDocument.mKmlRoot);
+//			startActivityForResult(myIntent, KmlTreeActivity.KML_TREE_REQUEST);
+//			return true;
+//		case R.id.menu_kml_styles:
+//			myIntent = new Intent(this, KmlStylesActivity.class);
+//			startActivityForResult(myIntent, KmlStylesActivity.KML_STYLES_REQUEST);
+//			return true;
+//		case R.id.menu_save_file:
+//			openLocalFileDialog(false);
+//			return true;
+//		case R.id.menu_kml_clear:
+//			mKmlDocument = new KmlDocument();
+//			updateUIWithKml();
+//			return true;
 		case R.id.menu_route_osrm:
 			mWhichRouteProvider = OSRM;
 			item.setChecked(true);
@@ -1760,6 +1774,14 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		for (int i = 2; i < nodeList.size(); i++) {
 			route.add(nodeList.get(i));
 		}
+//
+//		ArrayList<GeoPoint> points = road.mRouteHigh;
+//
+//		int counter = 0;
+//		for (GeoPoint point : points) {
+//			updateItineraryMarker(null, point,counter,
+//					R.string.viapoint, R.drawable.marker_via, -1, null);
+//		}
 	}
 
 	public void checkNextPoint() {
@@ -1769,20 +1791,37 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 			double distanceToNextNode = prevLocation.distanceTo(nextNode.mLocation);
 			double distanceToNextNextNode = prevLocation.distanceTo(nextNextNode.mLocation);
 
-			if (nextNode.mManeuverType == TURN_RIGHT && distanceToNextNode <= TURN_ON_DISTANCE_THRESHOLD) {
+			VibrationIntensity currentVibrationIntensity = this.retrieveVibrationIntensity(distanceToNextNode);
+
+			// Check if a turn is coming up
+			if (nextNode.mManeuverType == TURN_RIGHT
+					&& distanceToNextNode <= TURN_ON_DISTANCE_THRESHOLD
+					&& mRightVibrationIntensity != currentVibrationIntensity) {
+
+				mRightVibrationIntensity = currentVibrationIntensity;
+
 				// Vibrate the module for right
-//				Toast.makeText(this, "Turn Right", Toast.LENGTH_SHORT).show();
 				if(mBtRightNav.isConnected()) {
-					Toast.makeText(this, "Right navigation device not connected.", Toast.LENGTH_SHORT).show();
 					mBtRightNav.send("Hello Dhairya. Right.");
 				}
+				else {
+					Toast.makeText(this, "Turn right: " + mRightVibrationIntensity, Toast.LENGTH_SHORT).show();
+//					Toast.makeText(this, "Right navigation device not connected.", Toast.LENGTH_SHORT).show();
+				}
 			}
-			else if (nextNode.mManeuverType == TURN_LEFT && distanceToNextNode <= TURN_ON_DISTANCE_THRESHOLD) {
+			else if (nextNode.mManeuverType == TURN_LEFT
+					&& distanceToNextNode <= TURN_ON_DISTANCE_THRESHOLD
+					&& mLeftVibrationIntensity != currentVibrationIntensity) {
+
+				mLeftVibrationIntensity = currentVibrationIntensity;
+
 				// Vibrate the module for left
-//				Toast.makeText(this, "Turn Left", Toast.LENGTH_SHORT).show();
 				if(mBtRightNav.isConnected()) {
-					Toast.makeText(this, "Left navigation device not connected.", Toast.LENGTH_SHORT).show();
 					mBtLeftNav.send("Hello Dhairya. Left.");
+				}
+				else {
+					Toast.makeText(this, "Turn left: " + mLeftVibrationIntensity, Toast.LENGTH_SHORT).show();
+//					Toast.makeText(this, "Left navigation device not connected.", Toast.LENGTH_SHORT).show();
 				}
 			}
 
@@ -1792,6 +1831,14 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 				oldNextNextDistance = Double.MIN_VALUE;
 				route.remove(0);
 				nodeDistance.clearList();
+
+				Toast.makeText(this, "Turn off signal", Toast.LENGTH_SHORT).show();
+
+				// Set the intensity to off
+				mLeftVibrationIntensity = VibrationIntensity.NONE;
+				mRightVibrationIntensity = VibrationIntensity.NONE;
+				mBtRightNav.send(String.valueOf(VibrationIntensity.NONE.ordinal()));
+				mBtLeftNav.send(String.valueOf(VibrationIntensity.NONE.ordinal()));
 			}
 			else {
 				nodeDistance.add((distanceToNextNode - oldNextDistance > 2) && (oldNextNextDistance - distanceToNextNextNode > 2));
@@ -1866,26 +1913,21 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 
 			// Calculate the bearings
 			double difference = prevAngle - curAngle;
-			bearings prevBearing = getBearing(prevAngle);
-			bearings curBearing = getBearing(curAngle);
 
 			// Check if the point is actually a turn
-			if (prevAngle != 0 && Math.abs(difference) > 40) {
+			if (prevAngle != 0 && Math.abs(difference) > 30) {
 				int direction = 0;
 
-				if (prevBearing == bearings.NE && curBearing == bearings.SE
-						|| (prevBearing == bearings.SW && curBearing == bearings.NW)
-						|| (prevBearing == bearings.NW && curBearing == bearings.NE)
-						|| (prevBearing == bearings.SE && curBearing == bearings.SW)
-						|| (prevBearing == bearings.NE && curBearing == bearings.SE)) {
+				if (prevAngle < curAngle) {
 					direction = TURN_RIGHT;
-				} else {
+				}
+				else {
 					direction = TURN_LEFT;
 				}
 
 				// Add the turn node to the list
 				if (prevPoint.getLongitude() == roadNode.mLocation.getLongitude()
-						&& prevPoint.getLatitude() == roadNode.mLocation.getLongitude()) {
+						&& prevPoint.getLatitude() == roadNode.mLocation.getLatitude()) {
 					result.add(roadNode);
 					roadNode = roadNodeIterator.next();
 				}
@@ -1922,24 +1964,19 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		return clone;
 	}
 
-	public bearings getBearing(double degrees) {
-
-		if (degrees >= 0 && degrees <= 90) {
-			return bearings.NE;
+	public VibrationIntensity retrieveVibrationIntensity(double distance) {
+		if (distance <= TURN_ON_HIGH_DISTANCE) {
+			return VibrationIntensity.HIGH;
 		}
-		else if (degrees > 90 && degrees <= 180) {
-			return bearings.SE;
+		else if (distance <= TURN_ON_MEDIUM_DISTANCE) {
+			return VibrationIntensity.MEDIUM;
 		}
-		else if (degrees < 0 && degrees >= -90) {
-			return bearings.NW;
+		else if (distance <= TURN_ON_LOW_DISTANCE) {
+			return VibrationIntensity.LOW;
 		}
-		else if (degrees < -90 && degrees >= -180) {
-			return bearings.SW;
+		else {
+			return VibrationIntensity.NONE;
 		}
-
-		return null;
-		//        throw new Exception("Bearing not found.");
-
 	}
 
 	//region Bluetooth
