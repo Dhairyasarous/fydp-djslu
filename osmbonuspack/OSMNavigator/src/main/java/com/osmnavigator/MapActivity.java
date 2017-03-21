@@ -1116,6 +1116,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		protected void onPostExecute(Road[] result) {
 			mRoads = result;
 			updateUIWithRoads(result);
+			buildSimulationPost();
 //			getPOIAsync(poiTagText.getText().toString());
 		}
 	}
@@ -2109,15 +2110,26 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 
 	@Override
 	public void onMessage(int requestCode, String message) {
+		// Retrieve the vibration intensity
+		int intensity = (int) Double.parseDouble(message);
+		MapActivity.VibrationIntensity vibrationIntensity = MapActivity.VibrationIntensity.values()[intensity];
+
 		switch (requestCode) {
 			case Constants.BT_ID_BSD:
-				String s = message;
+				// Send the messages to the handlebars
+				mRightVibrationIntensity = vibrationIntensity;
+				mLeftVibrationIntensity = vibrationIntensity;
+//                    mTextView.setText(String.valueOf(intensity));
+				if (mBtLeftNav.isConnected())
+					mBtLeftNav.send(String.valueOf(intensity));
+
+				if (mBtRightNav.isConnected())
+					mBtRightNav.send(String.valueOf(intensity));
+
 				break;
 			case Constants.BT_ID_LEFT_NAV:
-				String a = message;
 				break;
 			case Constants.BT_ID_RIGHT_NAV:
-				String b = message;
 				break;
 		}
 	}
@@ -2205,13 +2217,14 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		this.isSimulated = true;
 		myLocationOverlay.setEnabled(false);
 
-		// Instantiate our own overlay
-		mySimulatedLocationOverlay = new DirectedLocationOverlay(this);
-		map.getOverlays().add(mySimulatedLocationOverlay);
+		EditText destinationEdit = (EditText)findViewById(R.id.editDestination);
+		destinationEdit.setText("Mel's diner waterloo");
 
-		simulationPointsList = this.createSimulationPoints();
+		EditText sourceEdit = (EditText)findViewById(R.id.editDeparture);
+		sourceEdit.setText("William g Davis computer research centre");
 
-		timerHandler.postDelayed(timerRunnable, 0);
+		handleSearchButton(START_INDEX, R.id.editDeparture);
+		handleSearchButton(DEST_INDEX, R.id.editDestination);
 
 //		timerHandler.removeCallbacks(timerRunnable);
 
@@ -2221,6 +2234,16 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 //					R.string.viapoint, R.drawable.marker_via, -1, null);
 //			counter++;
 //		}
+	}
+
+	public void buildSimulationPost() {
+		// Instantiate our own overlay
+		mySimulatedLocationOverlay = new DirectedLocationOverlay(this);
+		map.getOverlays().add(mySimulatedLocationOverlay);
+
+		simulationPointsList = this.createSimulationPoints();
+
+		timerHandler.postDelayed(timerRunnable, 0);
 	}
 
 	public void stopSimulation() {
