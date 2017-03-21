@@ -12,7 +12,7 @@ static const long MILLI_TO_SEC = 1000;
 #define trigPinSensorCenter 5
 #define echoPinSensorCenter 6
 
-static const long MAX_RANGE = 500; // cm
+static const long MAX_RANGE = 70; // cm
 static const long SENSOR_INTERVAL = 100; // milliseconds
 static unsigned long previous_millis = 0;
 
@@ -40,12 +40,12 @@ typedef struct {
 } Sensor;
 
 static const long MIN_SAMPLES_REQUIRED = 10; // samples
-static const double MIN_DISTANCE_THRESHOLD = 150; // cm
-static const double MIN_DISTANCE_THRESHOLD_MIN = 100; // cm
+static const double MIN_DISTANCE_THRESHOLD = 60; // cm
+static const double MIN_DISTANCE_THRESHOLD_MIN = 30; // cm
 static const double MIN_DISTANCE_DELTA_THRESHOLD = 100; // cm
 static const double MIN_DISTANCE_UPDATE_STEP_SIZE = MIN_DISTANCE_DELTA_THRESHOLD/20; // cm
 static double MIN_VELOCITY_THRESHOLD = -40;
-static double ALPHA = 0.8;
+static double ALPHA = 0.6;
 
 static Sensor sensor_left;
 static Sensor sensor_right;
@@ -76,7 +76,7 @@ void setup() {
 
   /* NRF8001 */
   while(!Serial); // Leonardo/Micro should wait for serial init
-  Serial.println(F("Adafruit Bluefruit Low Energy nRF8001 Print echo demo"));
+  Serial.println(F("BSD DEMO"));
   BTLEserial.setDeviceName("BSD"); /* 7 characters max! */
   BTLEserial.begin();
 }
@@ -118,7 +118,15 @@ void get_distance (Sensor *sensor) {
   // calculate distance based on the duration of the pulse
   duration = pulseIn(sensor->echoPin, HIGH);
   sensor->raw_distance = (double)(duration/2) / (double)29.1;
-  
+
+  // apply max and min cutoffs
+  if (sensor->raw_distance >= MAX_RANGE){
+    sensor->raw_distance = MAX_RANGE; 
+  }
+  else if (sensor->raw_distance <= 0) {
+    sensor->raw_distance = 0; 
+  } 
+/*  
   // apply max and min cutoffs
   if (sensor->raw_distance >= MAX_RANGE){
     sensor->raw_distance = sensor->raw_distance_prev; 
@@ -134,6 +142,7 @@ void get_distance (Sensor *sensor) {
     }
   }
   sensor->raw_distance_prev = sensor->raw_distance; // replace the junk value with last appropriate value
+*/
 }
 
 void apply_hack(Sensor *sensor) {
@@ -141,7 +150,7 @@ void apply_hack(Sensor *sensor) {
     sensor->ALPHA = 0.1;
   } 
   else if (sensor->raw_distance < MIN_DISTANCE_THRESHOLD) {
-    sensor->ALPHA = 0.3;
+    sensor->ALPHA = 0.6;
   }
   else {
     sensor->ALPHA = 0.8;
@@ -150,9 +159,9 @@ void apply_hack(Sensor *sensor) {
 
 void apply_hack2(double distance) {
   if (distance < MIN_DISTANCE_THRESHOLD) {
-    MIN_VELOCITY_THRESHOLD = -100;
+    MIN_VELOCITY_THRESHOLD = -20;
   } else {
-    MIN_VELOCITY_THRESHOLD = -40;
+    MIN_VELOCITY_THRESHOLD = -10;
   }
 }
 
@@ -259,8 +268,8 @@ void loop_bluetooth() {
       String sensor_left_distance = String(sensor_left.filtered_distance);
       String sensor_right_distance = String(sensor_right.filtered_distance);
       String sensor_center_distance = String(sensor_center.filtered_distance);
-      String s = String(global_warn_string + ", " + global_distance_string + ", " + sensor_center_distance + ", " + sensor_left_distance + "; ");
-//      String s = String(global_warn_string);
+//      String s = String(global_warn_string + ", " + global_distance_string + ", " + sensor_center_distance + ", " + sensor_left_distance + "; ");
+      String s = String(global_warn_string);
   
       // We need to convert the line to bytes, no more than 20 at this time
       uint8_t sendbuffer[20];
