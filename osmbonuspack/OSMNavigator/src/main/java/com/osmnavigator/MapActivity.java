@@ -31,6 +31,7 @@ import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.os.Parcel;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -146,6 +147,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		//for departure, destination and viapoints
 	protected Marker markerStart, markerDestination;
 	protected ViaPointInfoWindow mViaPointInfoWindow;
+	protected DirectedLocationOverlay mySimulatedLocationOverlay;
 	protected DirectedLocationOverlay myLocationOverlay;
 	//MyLocationNewOverlay myLocationNewOverlay;
 	protected LocationManager mLocationManager;
@@ -194,7 +196,6 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	static String geonamesAccount;
 
 	// Our own implementation
-	private enum bearings {NE1,NE2,NW1,NW2,SE1,SE2,SW1,SW2};
 	private ArrayList<RoadNode> route = new ArrayList<>();
 	private NodeDistance nodeDistance = new NodeDistance(2);
 	static final int TURN_LEFT = 4;
@@ -214,9 +215,94 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	private BluetoothAdapter mAdapter;
 	private MapActivity.VibrationIntensity mRightVibrationIntensity;
 	private MapActivity.VibrationIntensity mLeftVibrationIntensity;
+	private boolean isSimulated = false;
+	private List<SimulationPoint> simulationPointsList;
+	private int simulatedVibrationRight = 0;
+	private int simulatedVibrationLeft = 0;
 
 	public enum VibrationIntensity {NONE, HIGH, MEDIUM, LOW};
 	public static VibrationIntensity mVibrationIntensity;
+
+	//runs without a timer by reposting this handler at the end of the runnable
+	Handler timerHandler = new Handler();
+	Runnable timerRunnable = new Runnable() {
+
+		@Override
+		public void run() {
+			if (!simulationPointsList.isEmpty()) {
+				Log.d("d", "Inside");
+
+				int intensity = simulationPointsList.get(0).getVibrationIntensity();
+
+				mySimulatedLocationOverlay.setLocation(simulationPointsList.get(0).getPoint());
+				mySimulatedLocationOverlay.setBearing(simulationPointsList.get(0).getBearing());
+				map.getController().animateTo(mySimulatedLocationOverlay.getLocation());
+
+				if (intensity == 0) {
+					simulatedVibrationRight = intensity;
+					simulatedVibrationLeft = intensity;
+//					makeToast("TURN OFF");
+
+					if(mBtRightNav.isConnected()) {
+						mBtRightNav.send(String.valueOf(intensity));
+					}
+
+					if(mBtLeftNav.isConnected()) {
+						mBtLeftNav.send(String.valueOf(intensity));
+					}
+				}
+				else if (simulatedVibrationRight != intensity && simulationPointsList.get(0).getTurn() == "RIGHT") {
+					simulatedVibrationRight = intensity;
+//					makeToast("TURN RIGHT: " + MapActivity.VibrationIntensity.values()[intensity].toString());
+
+					if(mBtRightNav.isConnected()) {
+						mBtRightNav.send(String.valueOf(intensity));
+					}
+
+					if(mBtLeftNav.isConnected()) {
+						mBtLeftNav.send(String.valueOf(0));
+					}
+				}
+				else if (simulatedVibrationLeft != intensity && simulationPointsList.get(0).getTurn() == "LEFT") {
+					simulatedVibrationLeft = intensity;
+//					makeToast("TURN LEFT: " + MapActivity.VibrationIntensity.values()[intensity].toString());
+
+					if(mBtLeftNav.isConnected()) {
+						mBtLeftNav.send(String.valueOf(intensity));
+					}
+
+					if(mBtRightNav.isConnected()) {
+						mBtRightNav.send(String.valueOf(0));
+					}
+				}
+
+				simulationPointsList.remove(0);
+
+				timerHandler.postDelayed(this, 2500);
+			}
+			else {
+
+				if(mBtRightNav.isConnected()) {
+					mBtRightNav.send(String.valueOf(0));
+				}
+
+				if(mBtLeftNav.isConnected()) {
+					mBtLeftNav.send(String.valueOf(0));
+				}
+
+				// Reset UI
+				mItineraryMarkers.closeAllInfoWindows();
+				mItineraryMarkers.getItems().clear();
+				mRoadNodeMarkers.getItems().clear();
+				List<Overlay> mapOverlays = map.getOverlays();
+				if (mRoadOverlays != null){
+					for (int i=0; i<mRoadOverlays.length; i++)
+						mapOverlays.remove(mRoadOverlays[i]);
+					mRoadOverlays = null;
+				}
+			}
+		}
+	};
 
 
 	//region OSM Navigator Implementation
@@ -438,6 +524,9 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 				openOptionsMenu();
 			}
 		});
+
+
+//		this.buildSimulation();
 	}
 
 	final private int REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS = 124;
@@ -606,7 +695,8 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	@Override protected void onResume() {
 		super.onResume();
 		boolean isOneProviderEnabled = startLocationUpdates();
-		myLocationOverlay.setEnabled(isOneProviderEnabled);
+		if (!isSimulated)
+			myLocationOverlay.setEnabled(isOneProviderEnabled);
 		//TODO: not used currently
 		//mSensorManager.registerListener(this, mOrientation, SensorManager.SENSOR_DELAY_NORMAL);
 			//sensor listener is causing a high CPU consumption...
@@ -615,6 +705,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 
 	@Override protected void onPause() {
 		super.onPause();
+		timerHandler.removeCallbacks(timerRunnable);
 //		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 //			mLocationManager.removeUpdates(this);
 //		}
@@ -627,7 +718,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		if (mTrackingMode){
 			mTrackingModeButton.setBackgroundResource(R.drawable.btn_tracking_on);
 			if (myLocationOverlay.isEnabled()&& myLocationOverlay.getLocation() != null){
-				map.getController().animateTo(myLocationOverlay.getLocation());
+//				map.getController().animateTo(myLocationOverlay.getLocation());
 			}
 			map.setMapOrientation(-mAzimuthAngleSpeed);
 			mTrackingModeButton.setKeepScreenOn(true);
@@ -1411,10 +1502,10 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	@Override public boolean onPrepareOptionsMenu(Menu menu) {
 		mFriendsManager.onPrepareOptionsMenu(menu);
 
-		if (mRoads != null && mRoads[mSelectedRoad].mNodes.size()>0)
-			menu.findItem(R.id.menu_itinerary).setEnabled(true);
-		else
-			menu.findItem(R.id.menu_itinerary).setEnabled(false);
+//		if (mRoads != null && mRoads[mSelectedRoad].mNodes.size()>0)
+//			menu.findItem(R.id.menu_itinerary).setEnabled(true);
+//		else
+//			menu.findItem(R.id.menu_itinerary).setEnabled(false);
 
 		menu.findItem(R.id.menu_devices).setEnabled(true);
 		return true;
@@ -1483,12 +1574,16 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		switch (item.getItemId()) {
 		case R.id.menu_sharing:
 			return mFriendsManager.onOptionsItemSelected(item);
-		case R.id.menu_itinerary:
-			myIntent = new Intent(this, RouteActivity.class);
-			int currentNodeId = getIndexOfBubbledMarker(mRoadNodeMarkers.getItems());
-			myIntent.putExtra("SELECTED_ROAD", mSelectedRoad);
-			myIntent.putExtra("NODE_ID", currentNodeId);
-			startActivityForResult(myIntent, ROUTE_REQUEST);
+		case R.id.menu_simulation:
+//			myIntent = new Intent(this, RouteActivity.class);
+//			int currentNodeId = getIndexOfBubbledMarker(mRoadNodeMarkers.getItems());
+//			myIntent.putExtra("SELECTED_ROAD", mSelectedRoad);
+//			myIntent.putExtra("NODE_ID", currentNodeId);
+//			startActivityForResult(myIntent, ROUTE_REQUEST);
+			if (!isSimulated)
+				this.buildSimulation();
+			else
+				this.stopSimulation();
 			return true;
 		case R.id.menu_devices:
 			myIntent = new Intent(this, BluetoothSelectorActivity.class);
@@ -1634,8 +1729,10 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		GeoPoint newLocation = new GeoPoint(pLoc);
 		if (!myLocationOverlay.isEnabled()){
 			//we get the location for the first time:
-			myLocationOverlay.setEnabled(true);
-			map.getController().animateTo(newLocation);
+			if (!isSimulated) {
+				myLocationOverlay.setEnabled(true);
+				map.getController().animateTo(newLocation);
+			}
 		}
 
 		GeoPoint prevLocation = myLocationOverlay.getLocation();
@@ -1655,10 +1752,10 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 			}
 		}
 
-		if (mTrackingMode){
+		if (mTrackingMode && !isSimulated){
 			//keep the map view centered on current location:
-			map.getController().animateTo(newLocation);
-			map.setMapOrientation(-mAzimuthAngleSpeed);
+//			map.getController().animateTo(newLocation);
+//			map.setMapOrientation(-mAzimuthAngleSpeed);
 		} else {
 			//just redraw the location overlay:
 			map.invalidate();
@@ -1669,7 +1766,8 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		}
 
 		// Check the next point to alert the user for upcoming turn
-		checkNextPoint();
+		if (!isSimulated)
+			checkNextPoint();
 	}
 
 	static int[] TrackColor = {
@@ -1774,8 +1872,8 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		for (int i = 2; i < nodeList.size(); i++) {
 			route.add(nodeList.get(i));
 		}
-//
-//		ArrayList<GeoPoint> points = road.mRouteHigh;
+
+//		ArrayList<GeoPoint> points = this.createSimulationPoints();
 //
 //		int counter = 0;
 //		for (GeoPoint point : points) {
@@ -1785,7 +1883,12 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	}
 
 	public void checkNextPoint() {
-		GeoPoint prevLocation = myLocationOverlay.getLocation();
+		GeoPoint prevLocation;
+		if (!isSimulated)
+			prevLocation = myLocationOverlay.getLocation();
+		else
+			prevLocation = mySimulatedLocationOverlay.getLocation();
+
 		if (route.size() > 1) {
 			RoadNode nextNextNode = cloneRoadNode(route.get(0));
 			double distanceToNextNode = prevLocation.distanceTo(nextNode.mLocation);
@@ -2097,4 +2200,116 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		}
 	};
 	//endregion
+
+	public void buildSimulation() {
+		this.isSimulated = true;
+		myLocationOverlay.setEnabled(false);
+
+		// Instantiate our own overlay
+		mySimulatedLocationOverlay = new DirectedLocationOverlay(this);
+		map.getOverlays().add(mySimulatedLocationOverlay);
+
+		simulationPointsList = this.createSimulationPoints();
+
+		timerHandler.postDelayed(timerRunnable, 0);
+
+//		timerHandler.removeCallbacks(timerRunnable);
+
+//		int counter = 0;
+//		for (GeoPoint point : geoPointsList) {
+//			updateItineraryMarker(null, point,counter,
+//					R.string.viapoint, R.drawable.marker_via, -1, null);
+//			counter++;
+//		}
+	}
+
+	public void stopSimulation() {
+		this.simulationPointsList.clear();
+		this.mySimulatedLocationOverlay.setEnabled(false);
+		map.getOverlays().remove(map.getOverlays().size() - 1);
+		this.isSimulated = false;
+	}
+
+	private class SimulationPoint {
+		GeoPoint geoPoint;
+		Float bearing;
+		int vibrationIntensity;
+		String turn;
+
+		public SimulationPoint(GeoPoint geoPoint, Float bearing, int vibrationIntensity, String turn) {
+			this.geoPoint = geoPoint;
+			this.bearing = bearing;
+			this.vibrationIntensity = vibrationIntensity;
+			this.turn = turn;
+		}
+
+		public GeoPoint getPoint() {
+			return this.geoPoint;
+		}
+
+		public Float getBearing() {
+			return this.bearing;
+		}
+
+		public int getVibrationIntensity() {
+			return this.vibrationIntensity;
+		}
+
+		public String getTurn() {
+			return this.turn;
+		}
+	}
+
+	public void makeToast(String message) {
+		Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+	}
+
+	public ArrayList<SimulationPoint> createSimulationPoints() {
+		ArrayList<SimulationPoint> simulationPoints = new ArrayList<>();
+
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47287, -80.54189), (float) 55, 2, "RIGHT"));
+//		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47291, -80.54184), (float) 60));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47295, -80.54178), (float) 55, 2, "RIGHT"));
+//		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47299, -80.54173), (float) 60));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47303, -80.54167), (float) 55, 1, "RIGHT"));
+//		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47306, -80.54163), (float) 60));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47309, -80.54159), (float) 55, 1, "RIGHT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47312, -80.54154), (float) 90, 1, "RIGHT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47295, -80.54137), (float) 135, 0, ""));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47278, -80.54120), (float) 135, 0, ""));
+
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47263, -80.54104), (float) 135, 3, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47243, -80.54080), (float) 135, 3, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47223, -80.54055), (float) 135, 3, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47203, -80.54028), (float) 135, 3, "LEFT"));
+
+
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47173, -80.53985), (float) 135, 2, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47136, -80.53924), (float) 135, 2, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47120, -80.53895), (float) 135, 1, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47111, -80.53880), (float) 80, 1, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47125, -80.53852), (float) 55, 2, "RIGHT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47142, -80.53805), (float) 55, 1, "RIGHT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47152, -80.53769), (float) 90, 1, "RIGHT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47149, -80.53764), (float) 115, 1, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47145, -80.53758), (float) 115, 1, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47141, -80.53751), (float) 90, 1, "LEFT"));
+
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47158, -80.53727), (float) 60, 0, ""));
+
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47174, -80.53704), (float) 60, 3, "LEFT"));
+
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47181, -80.53691), (float) 75, 3, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47193, -80.53657), (float) 75, 3, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47206, -80.53623), (float) 75, 2, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47218, -80.53589), (float) 75, 2, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47231, -80.53555), (float) 75, 1, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47237, -80.53538), (float) 0, 1, "LEFT"));
+
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47255, -80.53551), (float) -30, 1, "LEFT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47273, -80.53564), (float) 0, 1, "RIGHT"));
+		simulationPoints.add(new SimulationPoint(new GeoPoint(43.47282, -80.53543), (float) 75, 0, ""));
+
+		return simulationPoints;
+	}
 }

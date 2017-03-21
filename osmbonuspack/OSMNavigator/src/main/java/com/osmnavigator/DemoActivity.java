@@ -107,7 +107,7 @@ public class DemoActivity extends Activity implements Bluetooth.CommunicationCal
             // Retrieve the vibration intensity
             int intensity = (int) Double.parseDouble(message);
             MapActivity.VibrationIntensity vibrationIntensity = MapActivity.VibrationIntensity.values()[intensity];
-            mTextView.setText(String.valueOf(intensity));
+//            mTextView.setText(String.valueOf(intensity));
 
             switch (requestCode) {
                 case Constants.BT_ID_BSD:
@@ -115,8 +115,12 @@ public class DemoActivity extends Activity implements Bluetooth.CommunicationCal
                     mRightVibrationIntensity = vibrationIntensity;
                     mLeftVibrationIntensity = vibrationIntensity;
 //                    mTextView.setText(String.valueOf(intensity));
-                    mBtLeftNav.send(String.valueOf(intensity));
-                    mBtRightNav.send(String.valueOf(intensity));
+                    if(mBtLeftNav.isConnected())
+                        mBtLeftNav.send(String.valueOf(intensity));
+
+                    if(mBtRightNav.isConnected())
+                        mBtRightNav.send(String.valueOf(intensity));
+
                     break;
                 case Constants.BT_ID_LEFT_NAV:
                     break;

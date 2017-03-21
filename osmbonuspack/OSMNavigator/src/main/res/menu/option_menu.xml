@@ -41,9 +41,9 @@
 		<!--</menu>-->
 	</item>
     <item
-        android:id="@+id/menu_itinerary"
+        android:id="@+id/menu_simulation"
         android:icon="@drawable/ic_menu_itinerary"
-        android:title="@string/menu_itinerary"/>
+        android:title="@string/menu_simulation"/>
     <item
         android:id="@+id/menu_devices"
 		android:icon="@drawable/ic_menu_itinerary"
