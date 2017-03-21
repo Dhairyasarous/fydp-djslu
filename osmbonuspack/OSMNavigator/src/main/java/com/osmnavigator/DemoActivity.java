@@ -7,6 +7,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.RadioButton;
 import android.widget.TextView;
 
 import djslu.fydp.com.bluetoothdeviceselector.BluetoothContext;
@@ -14,15 +15,13 @@ import djslu.fydp.com.bluetoothdeviceselector.BluetoothHolder;
 import djslu.fydp.com.bluetoothdeviceselector.BluetoothLibrary.Bluetooth;
 import djslu.fydp.com.bluetoothdeviceselector.Constants;
 
-public class DemoActivity extends Activity implements Bluetooth.CommunicationCallback {
+public class DemoActivity extends Activity implements Bluetooth.CommunicationCallback, RadioButton.OnClickListener {
 
     private Bluetooth mBtBSD;
     private Bluetooth mBtRightNav;
     private Bluetooth mBtLeftNav;
-    private TextView mTextView;
     private Button mLeftVibrationButton;
     private Button mRightVibrationButton;
-    private EditText mEditText;
     public static MapActivity.VibrationIntensity mRightVibrationIntensity;
     public static MapActivity.VibrationIntensity mLeftVibrationIntensity;
 
@@ -43,37 +42,15 @@ public class DemoActivity extends Activity implements Bluetooth.CommunicationCal
         mBtBSD.registerCommunicationCallback(DemoActivity.this);
         mBtRightNav.registerCommunicationCallback(DemoActivity.this);
         mBtLeftNav.registerCommunicationCallback(DemoActivity.this);
+        RadioButton radioButtonLow = (RadioButton) findViewById(R.id.radioButtonLow);
+        RadioButton radioButtonMedium = (RadioButton) findViewById(R.id.radioButtonMedium);
+        RadioButton radioButtonHigh = (RadioButton) findViewById(R.id.radioButtonHigh);
+        RadioButton radioButtonOff = (RadioButton) findViewById(R.id.radioButtonOff);
+        radioButtonLow.setOnClickListener(this);
+        radioButtonMedium.setOnClickListener(this);
+        radioButtonHigh.setOnClickListener(this);
+        radioButtonOff.setOnClickListener(this);
 
-        mEditText = (EditText)findViewById(R.id.intensity);
-        mTextView = (TextView) findViewById(R.id.debug_text);
-
-        mTextView.setText("Text");
-
-        // Initialize the left vibration button listener
-        mLeftVibrationButton = (Button)findViewById(R.id.left_vibration);
-        mLeftVibrationButton.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
-                String text = mEditText.getText().toString();
-                if(mBtLeftNav.isConnected() && !text.isEmpty()) {
-                    // Change the intensity
-                    mLeftVibrationIntensity = MapActivity.VibrationIntensity.values()[Integer.parseInt(text)];
-                    mBtLeftNav.send(text);
-                }
-            }
-        });
-
-        // Initialize the right vibration button listener
-        mRightVibrationButton = (Button)findViewById(R.id.right_vibration);
-        mRightVibrationButton.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
-                String text = mEditText.getText().toString();
-                if(mBtRightNav.isConnected() && !text.isEmpty()) {
-                    // Change the intensity
-                    mRightVibrationIntensity = MapActivity.VibrationIntensity.values()[Integer.parseInt(text)];
-                    mBtRightNav.send(text);
-                }
-            }
-        });
     }
 
     //region Bluetooth
@@ -107,7 +84,6 @@ public class DemoActivity extends Activity implements Bluetooth.CommunicationCal
             // Retrieve the vibration intensity
             int intensity = (int) Double.parseDouble(message);
             MapActivity.VibrationIntensity vibrationIntensity = MapActivity.VibrationIntensity.values()[intensity];
-            mTextView.setText(String.valueOf(intensity));
 
             switch (requestCode) {
                 case Constants.BT_ID_BSD:
@@ -150,5 +126,46 @@ public class DemoActivity extends Activity implements Bluetooth.CommunicationCal
             case Constants.BT_ID_RIGHT_NAV:
                 break;
         }
+    }
+
+    @Override
+    public void onClick(View view) {
+        if (mBtRightNav.isConnected() && mBtLeftNav.isConnected()) {
+            boolean checked = ((RadioButton) view).isChecked();
+
+            // Check which radio button was clicked
+            switch(view.getId()) {
+                case R.id.radioButtonHigh:
+                    if (checked) {
+                        mLeftVibrationIntensity = MapActivity.VibrationIntensity.HIGH;
+                        mBtLeftNav.send(String.valueOf(MapActivity.VibrationIntensity.HIGH.ordinal()));
+                        mBtRightNav.send(String.valueOf(MapActivity.VibrationIntensity.HIGH.ordinal()));
+                    }
+                    break;
+
+                case R.id.radioButtonMedium:
+                    if (checked) {
+                        mLeftVibrationIntensity = MapActivity.VibrationIntensity.MEDIUM;
+                        mBtLeftNav.send(String.valueOf(MapActivity.VibrationIntensity.MEDIUM.ordinal()));
+                        mBtRightNav.send(String.valueOf(MapActivity.VibrationIntensity.MEDIUM.ordinal()));
+                    }
+                    break;
+                case R.id.radioButtonLow:
+                    if (checked) {
+                        mLeftVibrationIntensity = MapActivity.VibrationIntensity.LOW;
+                        mBtLeftNav.send(String.valueOf(MapActivity.VibrationIntensity.LOW.ordinal()));
+                        mBtRightNav.send(String.valueOf(MapActivity.VibrationIntensity.LOW.ordinal()));
+                    }
+                    break;
+                case R.id.radioButtonOff:
+                    if (checked) {
+                        mLeftVibrationIntensity = MapActivity.VibrationIntensity.NONE;
+                        mBtLeftNav.send(String.valueOf(MapActivity.VibrationIntensity.NONE.ordinal()));
+                        mBtRightNav.send(String.valueOf(MapActivity.VibrationIntensity.NONE.ordinal()));
+                    }
+                    break;
+            }
+        }
+
     }
 }

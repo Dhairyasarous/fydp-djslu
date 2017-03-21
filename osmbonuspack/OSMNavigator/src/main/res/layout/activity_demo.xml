@@ -10,29 +10,51 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="com.osmnavigator.DemoActivity">
 
-    <EditText
-        android:id="@+id/intensity"
+    <TextView
+        android:id="@+id/textView5"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:text="Vibration Intensity" />
+
+    <RadioGroup
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/VibrationIntensity" />
-    <Button
-        android:id="@+id/left_vibration"
-        android:layout_width="96dp"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/intensity"
         android:layout_alignParentLeft="true"
-        android:text="@string/LeftVibration" />
-    <Button
-        android:id="@+id/right_vibration"
-        android:layout_width="96dp"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/intensity"
-        android:layout_alignParentRight="true"
-        android:text="@string/RightVibration" />
-    <TextView
-        android:id="@+id/debug_text"
-        android:layout_width="96dp"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/right_vibration"/>
+        android:layout_alignParentStart="true"
+        android:orientation="horizontal"
+        android:layout_below="@+id/textView5">
+
+        <RadioButton
+            android:id="@+id/radioButtonLow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Low" />
+
+        <RadioButton
+            android:id="@+id/radioButtonMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Medium" />
+
+        <RadioButton
+            android:id="@+id/radioButtonHigh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="High" />
+
+        <RadioButton
+            android:id="@+id/radioButtonOff"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:checked="true"
+            android:text="Off" />
+    </RadioGroup>
 
 </RelativeLayout>
